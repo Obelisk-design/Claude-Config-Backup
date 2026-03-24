@@ -9,7 +9,8 @@
       "Bash(pytest * *)",
       "Bash(pytest tests/test_mysql_client.py -v)",
       "Bash(pytest tests/test_sqlite_cache.py -v)",
-      "Bash(pytest tests/ -v --tb=short)"
+      "Bash(pytest tests/ -v --tb=short)",
+      "Bash(pyinstaller --clean ClaudeConfigBackup.spec)"
     ]
   }
 }
