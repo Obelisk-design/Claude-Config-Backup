@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ping:*)",
+      "Bash(~/.claude/skills/gstack/bin/gstack-review-log '{\"\"skill\"\":\"\"plan-ceo-review\"\",\"\"timestamp\"\":\"\"2026-03-24T16:30:00\"\",\"\"status\"\":\"\"clean\"\",\"\"unresolved\"\":0,\"\"critical_gaps\"\":2,\"\"mode\"\":\"\"SELECTIVE_EXPANSION\"\",\"\"commit\"\":\"\"none\"\"}')",
+      "Bash(~/.claude/skills/gstack/bin/gstack-review-read)",
+      "Bash(cd:*)",
+      "Bash(pytest*)",
+      "Bash(pytest * *)",
+      "Bash(pytest tests/test_mysql_client.py -v)",
+      "Bash(pytest tests/test_sqlite_cache.py -v)",
+      "Bash(pytest tests/ -v --tb=short)"
+    ]
+  }
+}

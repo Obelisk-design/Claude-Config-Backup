@@ -1,0 +1,15 @@
+patterns:
+  - pattern: "ANTHROPIC_AUTH_TOKEN"
+    action: "exclude"
+  - pattern: "mysql_password"
+    action: "mask"
+  - pattern: "ssh_password*"
+    action: "mask"
+  - pattern: "*_TOKEN"
+    action: "mask"
+  - pattern: "*_PASSWORD"
+    action: "mask"
+  - pattern: "*_SECRET"
+    action: "mask"
+
+mask_value: "***MASKED***"

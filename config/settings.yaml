@@ -1,0 +1,42 @@
+app:
+  name: "Claude Config Backup"
+  version: "1.0.0"
+  language: "zh_CN"
+
+database:
+  host: "43.153.156.249"
+  port: 3306
+  name: "claude_backup"
+  charset: "utf8mb4"
+
+github:
+  client_id: ""
+  client_secret: ""
+  redirect_port: 18080
+  repo_name: "claude-config-backup"
+
+backup:
+  max_file_size_mb: 100
+  default_modules:
+    - core
+    - skills
+    - commands
+    - memory
+  exclude_patterns:
+    - "__pycache__"
+    - "*.pyc"
+    - "node_modules"
+    - "*.log"
+
+sensitive_fields:
+  patterns:
+    - "*_TOKEN"
+    - "*_PASSWORD"
+    - "*_SECRET"
+    - "ANTHROPIC_AUTH_TOKEN"
+  action: "mask"
+
+update:
+  check_on_startup: true
+  auto_download: false
+  releases_url: "https://api.github.com/repos/{owner}/{repo}/releases/latest"

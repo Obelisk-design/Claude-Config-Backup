@@ -1,0 +1,86 @@
+version: "1.0"
+
+modules:
+  core:
+    name: "核心配置"
+    description: "settings.json、config.json 等核心配置文件"
+    icon: "⚙️"
+    is_premium: false
+    enabled: true
+    paths:
+      - pattern: "settings.json"
+        required: true
+      - pattern: "settings.local.json"
+        required: false
+      - pattern: "config.json"
+        required: true
+    exclude:
+      - "*.bak"
+      - "*.backup.*"
+
+  skills:
+    name: "技能文件"
+    description: "自定义技能文件"
+    icon: "🎯"
+    is_premium: false
+    enabled: true
+    paths:
+      - pattern: "skills/**/*"
+        required: false
+    follow_symlinks: true
+    exclude:
+      - "__pycache__"
+      - "*.pyc"
+
+  commands:
+    name: "自定义命令"
+    description: "自定义斜杠命令"
+    icon: "💬"
+    is_premium: false
+    enabled: true
+    paths:
+      - pattern: "commands/**/*.md"
+        required: false
+
+  memory:
+    name: "记忆文件"
+    description: "Claude 记忆系统文件"
+    icon: "🧠"
+    is_premium: false
+    enabled: true
+    paths:
+      - pattern: "memory/**/*"
+        required: false
+    exclude:
+      - "*.tmp"
+
+  mcp_servers:
+    name: "MCP 服务器"
+    description: "MCP 服务器配置和脚本"
+    icon: "🔌"
+    is_premium: false
+    enabled: true
+    paths:
+      - pattern: "mcp-servers/**/*"
+        required: false
+    exclude:
+      - "__pycache__"
+      - "node_modules"
+      - "*.log"
+      - "*.db"
+
+  tools:
+    name: "自定义工具"
+    description: "自定义工具脚本"
+    icon: "🔧"
+    is_premium: false
+    enabled: true
+    paths:
+      - pattern: "tools/**/*"
+        required: false
+    exclude:
+      - "__pycache__"
+      - "node_modules"
+
+premium_modules: {}
+custom_modules_dir: "custom_modules"
