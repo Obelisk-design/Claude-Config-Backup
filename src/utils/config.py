@@ -1,13 +1,25 @@
 # -*- coding: utf-8 -*-
 """配置管理"""
 
+import sys
 import yaml
 import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+
+def get_config_dir():
+    """获取配置目录，兼容开发环境和打包环境"""
+    if getattr(sys, 'frozen', False):
+        # PyInstaller 打包后，从 _MEIPASS 读取内置配置
+        return Path(sys._MEIPASS) / "config"
+    else:
+        # 开发环境
+        return Path(__file__).parent.parent.parent / "config"
+
+
 # 配置路径
-CONFIG_DIR = Path(__file__).parent.parent.parent / "config"
+CONFIG_DIR = get_config_dir()
 USER_CONFIG_DIR = Path.home() / ".claude-backup"
 USER_CONFIG_FILE = USER_CONFIG_DIR / "config.json"
 

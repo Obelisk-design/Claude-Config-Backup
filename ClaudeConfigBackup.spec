@@ -1,12 +1,49 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 a = Analysis(
-    ['D:\\CodeSpace\\claudeFi\\src\\main.py'],
-    pathex=[],
+    ['src/main.py'],
+    pathex=['D:\\CodeSpace\\claudeFi'],
     binaries=[],
-    datas=[('D:\\CodeSpace\\claudeFi\\config', 'config')],
-    hiddenimports=['PyQt5.sip', 'PyQt5.QtCore', 'PyQt5.QtWidgets', 'PyQt5.QtGui', 'PyQt5.QtSvg', 'github', 'pymysql', 'cryptography', 'yaml', 'requests', 'paramiko'],
+    datas=[
+        ('config', 'config'),
+    ],
+    hiddenimports=[
+        'PyQt5.sip',
+        'PyQt5.QtCore',
+        'PyQt5.QtWidgets',
+        'PyQt5.QtGui',
+        'PyQt5.QtSvg',
+        'app',
+        'gui.main_window',
+        'gui.tabs.backup_tab',
+        'gui.tabs.restore_tab',
+        'gui.tabs.history_tab',
+        'gui.tabs.settings_tab',
+        'gui.dialogs.login_dialog',
+        'gui.dialogs.preview_dialog',
+        'gui.widgets.module_list',
+        'gui.widgets.status_bar',
+        'core.exceptions',
+        'core.module_loader',
+        'core.backup_manager',
+        'core.restore_manager',
+        'auth.github_oauth',
+        'auth.token_manager',
+        'security.crypto',
+        'security.sensitive_filter',
+        'storage.base',
+        'storage.github_storage',
+        'database.mysql_client',
+        'database.sqlite_cache',
+        'utils.logger',
+        'utils.config',
+        'github',
+        'pymysql',
+        'cryptography',
+        'yaml',
+        'requests',
+        'paramiko',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -14,6 +51,7 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
 pyz = PYZ(a.pure)
 
 exe = EXE(

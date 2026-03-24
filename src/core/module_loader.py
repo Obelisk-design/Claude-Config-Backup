@@ -1,14 +1,24 @@
 # -*- coding: utf-8 -*-
 """备份模块加载器"""
 
+import sys
 import yaml
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from utils.logger import logger
 
+
+def get_config_dir():
+    """获取配置目录，兼容开发环境和打包环境"""
+    if getattr(sys, 'frozen', False):
+        return Path(sys._MEIPASS) / "config"
+    else:
+        return Path(__file__).parent.parent.parent / "config"
+
+
 # 配置目录
-CONFIG_DIR = Path(__file__).parent.parent.parent / "config"
+CONFIG_DIR = get_config_dir()
 # Claude 配置目录
 CLAUDE_DIR = Path.home() / ".claude"
 
