@@ -344,7 +344,7 @@ git commit -m "feat: 实现 SSHStorage 辅助方法"
 
 ---
 
-### Task 1.4: upload 和 download 方法
+### Task 1.4: upload 方法
 
 **Files:**
 - Modify: `src/storage/ssh_storage.py`
@@ -396,7 +396,12 @@ class TestSSHStorageUpload:
             mock_sftp.mkdir.assert_called()
 ```
 
-- [ ] **Step 2: 编写 download 测试**
+- [ ] **Step 2: 运行测试验证失败**
+
+Run: `pytest tests/test_ssh_storage.py::TestSSHStorageUpload -v`
+Expected: FAIL (方法不存在)
+
+- [ ] **Step 3: 实现 upload 方法**
 
 ```python
 # tests/test_ssh_storage.py - 添加到文件末尾
@@ -440,47 +445,79 @@ class TestSSHStorageDownload:
                 storage.download("nonexistent.ccb", str(dest_file))
 ```
 
-- [ ] **Step 3: 运行测试验证失败**
+- [ ] **Step 4: 运行测试验证通过**
 
-Run: `pytest tests/test_ssh_storage.py::TestSSHStorageUpload tests/test_ssh_storage.py::TestSSHStorageDownload -v`
-Expected: FAIL (方法不存在)
+Run: `pytest tests/test_ssh_storage.py::TestSSHStorageUpload -v`
+Expected: PASS
 
-- [ ] **Step 4: 实现 upload 和 download 方法**
+- [ ] **Step 5: 提交 upload 实现**
+
+```bash
+git add src/storage/ssh_storage.py tests/test_ssh_storage.py
+git commit -m "feat: 实现 SSHStorage upload 方法"
+```
+
+---
+
+### Task 1.5: download 方法
+
+**Files:**
+- Modify: `src/storage/ssh_storage.py`
+- Modify: `tests/test_ssh_storage.py`
+
+- [ ] **Step 1: 编写 download 测试**
 
 ```python
-# src/storage/ssh_storage.py - 添加到 _ensure_backup_dir 方法之后
+# tests/test_ssh_storage.py - 添加到文件末尾
 
-    def upload(self, local_path: str, remote_path: str) -> bool:
-        """上传文件到 SSH 服务器
+class TestSSHStorageDownload:
+    """测试下载功能"""
 
-        Args:
-            local_path: 本地文件路径
-            remote_path: 远程文件路径（相对于备份目录）
+    @patch('storage.ssh_storage.SSHClient')
+    def test_download_success(self, mock_ssh_client, tmp_path):
+        """测试下载成功"""
+        from storage.ssh_storage import SSHStorage
 
-        Returns:
-            True 如果上传成功
+        mock_client = MagicMock()
+        mock_sftp = MagicMock()
+        mock_client.open_sftp.return_value = mock_sftp
+        mock_ssh_client.return_value = mock_client
 
-        Raises:
-            BackupError: 上传失败
-        """
-        if not self._sftp:
-            raise BackupError("SFTP connection not established")
+        dest_file = tmp_path / "downloaded.ccb"
 
-        try:
-            # 确保备份目录存在
-            self._ensure_backup_dir()
+        with SSHStorage("host", 22, "user", "pass") as storage:
+            result = storage.download("backup.ccb", str(dest_file))
+            assert result is True
+            mock_sftp.get.assert_called_once()
 
-            # 获取完整远程路径
-            full_remote_path = self._get_remote_path(remote_path)
+    @patch('storage.ssh_storage.SSHClient')
+    def test_download_file_not_found(self, mock_ssh_client, tmp_path):
+        """测试下载文件不存在"""
+        from storage.ssh_storage import SSHStorage
+        from core.exceptions import RestoreError
 
-            # 上传文件
-            self._sftp.put(local_path, full_remote_path)
-            logger.info(f"Uploaded {local_path} to {full_remote_path}")
-            return True
+        mock_client = MagicMock()
+        mock_sftp = MagicMock()
+        mock_client.open_sftp.return_value = mock_sftp
+        mock_ssh_client.return_value = mock_client
+        mock_sftp.get.side_effect = FileNotFoundError("No such file")
 
-        except Exception as e:
-            logger.error(f"Upload failed: {e}")
-            raise BackupError(f"Failed to upload file: {e}")
+        dest_file = tmp_path / "downloaded.ccb"
+
+        with pytest.raises(RestoreError):
+            with SSHStorage("host", 22, "user", "pass") as storage:
+                storage.download("nonexistent.ccb", str(dest_file))
+```
+
+- [ ] **Step 2: 运行测试验证失败**
+
+Run: `pytest tests/test_ssh_storage.py::TestSSHStorageDownload -v`
+Expected: FAIL (方法不存在)
+
+- [ ] **Step 3: 实现 download 方法**
+
+```python
+# src/storage/ssh_storage.py - 添加到 upload 方法之后
 
     def download(self, remote_path: str, local_path: str) -> bool:
         """从 SSH 服务器下载文件
@@ -512,21 +549,21 @@ Expected: FAIL (方法不存在)
             raise RestoreError(f"Failed to download file: {e}")
 ```
 
-- [ ] **Step 5: 运行测试验证通过**
+- [ ] **Step 4: 运行测试验证通过**
 
-Run: `pytest tests/test_ssh_storage.py::TestSSHStorageUpload tests/test_ssh_storage.py::TestSSHStorageDownload -v`
+Run: `pytest tests/test_ssh_storage.py::TestSSHStorageDownload -v`
 Expected: PASS
 
-- [ ] **Step 6: 提交上传下载实现**
+- [ ] **Step 5: 提交 download 实现**
 
 ```bash
 git add src/storage/ssh_storage.py tests/test_ssh_storage.py
-git commit -m "feat: 实现 SSHStorage upload 和 download 方法"
+git commit -m "feat: 实现 SSHStorage download 方法"
 ```
 
 ---
 
-### Task 1.5: list_files 和 delete 方法
+### Task 1.6: list_files 和 delete 方法
 
 **Files:**
 - Modify: `src/storage/ssh_storage.py`
@@ -761,7 +798,7 @@ git commit -m "feat: 完成 SSHStorage 所有核心方法实现"
 
 ---
 
-### Task 1.6: 云存储预留占位
+### Task 1.7: 云存储预留占位
 
 **Files:**
 - Create: `src/storage/cloud_storage.py`
@@ -1013,7 +1050,12 @@ class SSHUploadWorker(QThread):
             self._reset_backup_button()
 ```
 
-- [ ] **Step 5: 提交备份页面 SSH 集成**
+- [ ] **Step 5: 验证代码可加载**
+
+Run: `python -c "from gui.tabs.backup_tab import BackupTab, SSHUploadWorker; print('OK')"`
+Expected: `OK`
+
+- [ ] **Step 6: 提交备份页面 SSH 集成**
 
 ```bash
 git add src/gui/tabs/backup_tab.py
@@ -1128,7 +1170,12 @@ git commit -m "feat: 备份页面集成 SSH 存储"
         return cache_path, cache_path
 ```
 
-- [ ] **Step 3: 提交恢复页面集成**
+- [ ] **Step 3: 验证代码可加载**
+
+Run: `python -c "from gui.tabs.restore_tab import RestoreTab; print('OK')"`
+Expected: `OK`
+
+- [ ] **Step 4: 提交恢复页面集成**
 
 ```bash
 git add src/gui/tabs/restore_tab.py
@@ -1202,7 +1249,12 @@ git commit -m "feat: 恢复页面集成 SSH 存储"
         # ... 后续代码保持不变
 ```
 
-- [ ] **Step 2: 提交历史页面集成**
+- [ ] **Step 2: 验证代码可加载**
+
+Run: `python -c "from gui.tabs.history_tab import HistoryTab; print('OK')"`
+Expected: `OK`
+
+- [ ] **Step 3: 提交历史页面集成**
 
 ```bash
 git add src/gui/tabs/history_tab.py
@@ -1262,7 +1314,12 @@ def decrypt_password(encrypted_password: str) -> str:
     return decrypted.decode('utf-8')
 ```
 
-- [ ] **Step 2: 提交加密函数**
+- [ ] **Step 2: 验证加密函数**
+
+Run: `python -c "from security.crypto import encrypt_password, decrypt_password; p=encrypt_password('test'); assert decrypt_password(p)=='test'; print('OK')"`
+Expected: `OK`
+
+- [ ] **Step 3: 提交加密函数**
 
 ```bash
 git add src/security/crypto.py
@@ -1384,7 +1441,12 @@ git commit -m "feat: 添加密码加密辅助函数"
         # ... 后续代码保持不变
 ```
 
-- [ ] **Step 4: 提交设置页面集成**
+- [ ] **Step 4: 验证代码可加载**
+
+Run: `python -c "from gui.tabs.settings_tab import SettingsTab; print('OK')"`
+Expected: `OK`
+
+- [ ] **Step 5: 提交设置页面集成**
 
 ```bash
 git add src/gui/tabs/settings_tab.py
