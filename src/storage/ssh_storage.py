@@ -222,7 +222,26 @@ class SSHStorage(StorageBase):
             return []
 
     def delete(self, remote_path: str) -> bool:
-        raise NotImplementedError("delete method not implemented")
+        """删除 SSH 服务器上的备份文件
+
+        Args:
+            remote_path: 远程相对路径
+
+        Returns:
+            bool: 删除是否成功
+
+        Raises:
+            BackupError: 删除失败
+        """
+        try:
+            remote_full_path = self._get_remote_path(remote_path)
+            self._sftp.remove(remote_full_path)
+            logger.info(f"Delete successful: {remote_full_path}")
+            return True
+        except FileNotFoundError as e:
+            raise BackupError(f"Remote file not found: {remote_path}")
+        except Exception as e:
+            raise BackupError(f"Delete failed: {e}")
 
     def get_file_url(self, remote_path: str) -> Optional[str]:
         return None  # SSH 没有 HTTP URL

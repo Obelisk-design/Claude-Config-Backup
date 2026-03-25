@@ -258,3 +258,38 @@ class TestSSHStorageListFiles:
         with SSHStorage("host", 22, "user", "pass") as storage:
             files = storage.list_files()
             assert files == []
+
+
+class TestSSHStorageDelete:
+    """测试删除功能"""
+
+    @patch('storage.ssh_storage.SSHClient')
+    def test_delete_success(self, mock_ssh_client):
+        """测试删除成功"""
+        from storage.ssh_storage import SSHStorage
+
+        mock_client = MagicMock()
+        mock_sftp = MagicMock()
+        mock_client.open_sftp.return_value = mock_sftp
+        mock_ssh_client.return_value = mock_client
+
+        with SSHStorage("host", 22, "user", "pass") as storage:
+            result = storage.delete("backup.ccb")
+            assert result is True
+            mock_sftp.remove.assert_called_once()
+
+    @patch('storage.ssh_storage.SSHClient')
+    def test_delete_file_not_found(self, mock_ssh_client):
+        """测试删除文件不存在"""
+        from storage.ssh_storage import SSHStorage
+        from core.exceptions import BackupError
+
+        mock_client = MagicMock()
+        mock_sftp = MagicMock()
+        mock_client.open_sftp.return_value = mock_sftp
+        mock_ssh_client.return_value = mock_client
+        mock_sftp.remove.side_effect = FileNotFoundError("No such file")
+
+        with pytest.raises(BackupError):
+            with SSHStorage("host", 22, "user", "pass") as storage:
+                storage.delete("nonexistent.ccb")
