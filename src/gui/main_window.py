@@ -21,7 +21,7 @@ from utils.logger import logger
 
 
 def create_app_icon():
-    """创建应用图标 - 科技风格"""
+    """创建应用图标 - 清新花园风格"""
     size = 64
     pixmap = QPixmap(size, size)
     pixmap.fill(Qt.transparent)
@@ -31,16 +31,16 @@ def create_app_icon():
 
     # 绘制圆角矩形背景
     gradient = QLinearGradient(0, 0, size, size)
-    gradient.setColorAt(0, QColor("#00d4ff"))
-    gradient.setColorAt(1, QColor("#0099cc"))
+    gradient.setColorAt(0, QColor("#52b788"))
+    gradient.setColorAt(1, QColor("#2d6a4f"))
 
     from PyQt5.QtGui import QBrush
     painter.setBrush(QBrush(gradient))
-    painter.setPen(QPen(QColor("#00d4ff"), 2))
+    painter.setPen(QPen(QColor("#40916c"), 2))
     painter.drawRoundedRect(6, 6, size - 12, size - 12, 14, 14)
 
     # 绘制 C 字母
-    painter.setPen(QPen(QColor("#0d1117"), 5, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+    painter.setPen(QPen(QColor("#ffffff"), 5, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
     from PyQt5.QtGui import QPainterPath
     path = QPainterPath()
     path.moveTo(40, 18)

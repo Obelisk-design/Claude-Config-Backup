@@ -1,58 +1,64 @@
 # -*- coding: utf-8 -*-
 """
-Claude Config Backup - UI Theme System v2.0
-Cyberpunk Terminal Aesthetic
+Claude Config Backup - UI Theme System v3.0
+Fresh Garden Aesthetic
 
 设计理念：
-- 终端黑客风格：深色背景、霓虹边框、等宽字体
-- 清晰的信息层级：每个区块有明确的视觉边界
-- 精致的交互反馈：悬停、焦点、激活状态
+- 清新自然：森林绿主色调，搭配薄荷绿和暖色调
+- 舒适阅读：柔和的色彩对比，减少视觉疲劳
+- 现代简洁：圆角卡片式设计，层次分明
 """
 
 # ============================================
-# 颜色系统
+# 颜色系统 - 森林花园调色板
 # ============================================
 
-# 主色调 - 霓虹青
-PRIMARY = "#00f0ff"
-PRIMARY_DIM = "#00b8c4"
-PRIMARY_GLOW = "rgba(0, 240, 255, 0.15)"
-PRIMARY_SUBTLE = "rgba(0, 240, 255, 0.05)"
+# 主色调 - 森林绿
+PRIMARY = "#2d6a4f"
+PRIMARY_LIGHT = "#40916c"
+PRIMARY_LIGHTER = "#52b788"
+PRIMARY_PALE = "#d8f3dc"
+PRIMARY_GLOW = "rgba(45, 106, 79, 0.12)"
 
 # 语义色
-SUCCESS = "#00ff9d"
-SUCCESS_DIM = "#00cc7d"
-ERROR = "#ff3366"
-ERROR_DIM = "#cc2952"
-WARNING = "#ffcc00"
-INFO = "#00f0ff"
+SUCCESS = "#2d6a4f"
+SUCCESS_LIGHT = "#52b788"
+ERROR = "#c44536"
+ERROR_LIGHT = "#e07a5f"
+WARNING = "#d4a373"
+INFO = "#457b9d"
 
-# 背景色 - 深邃黑
-BG_BASE = "#0a0e14"
-BG_SURFACE = "#111820"
-BG_ELEVATED = "#1a222d"
-BG_HOVER = "#232d3b"
+# 背景色 - 温暖米白
+BG_BASE = "#faf8f5"
+BG_SURFACE = "#ffffff"
+BG_ELEVATED = "#f4f1eb"
+BG_HOVER = "#ebe7df"
 
 # 文字色
-TEXT_PRIMARY = "#e6edf3"
-TEXT_SECONDARY = "#7d8590"
-TEXT_MUTED = "#484f58"
+TEXT_PRIMARY = "#1b3a2f"
+TEXT_SECONDARY = "#4a6c5c"
+TEXT_MUTED = "#7a9988"
 
 # 边框
-BORDER_DEFAULT = "#2d3640"
-BORDER_MUTED = "#1e252d"
-BORDER_GLOW = "rgba(0, 240, 255, 0.4)"
+BORDER_DEFAULT = "#e2ddd5"
+BORDER_LIGHT = "#ebe7df"
+BORDER_FOCUS = "#40916c"
+
+# 点缀色
+ACCENT_WARM = "#e07a5f"
+ACCENT_GOLD = "#d4a373"
+ACCENT_SKY = "#89c2d9"
 
 # ============================================
 # 尺寸系统
 # ============================================
 
-INPUT_HEIGHT = "46px"
-BUTTON_HEIGHT = "46px"
+INPUT_HEIGHT = "44px"
+BUTTON_HEIGHT = "44px"
 
-RADIUS_SM = "6px"
-RADIUS_MD = "10px"
-RADIUS_LG = "14px"
+RADIUS_SM = "8px"
+RADIUS_MD = "12px"
+RADIUS_LG = "18px"
 
 # ============================================
 # 全局样式
@@ -61,7 +67,7 @@ RADIUS_LG = "14px"
 MAIN_STYLE = f"""
 /* ========== 全局基础 ========== */
 * {{
-    font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", "Consolas", monospace;
+    font-family: "Microsoft YaHei UI", "Segoe UI", "PingFang SC", sans-serif;
 }}
 
 QWidget {{
@@ -94,7 +100,7 @@ QTabWidget::pane {{
     border: 1px solid {BORDER_DEFAULT};
     border-radius: {RADIUS_LG};
     margin-top: -1px;
-    padding: 20px;
+    padding: 24px;
 }}
 
 QTabBar {{
@@ -104,14 +110,14 @@ QTabBar {{
 QTabBar::tab {{
     background-color: transparent;
     color: {TEXT_SECONDARY};
-    padding: 14px 28px;
-    margin-right: 2px;
+    padding: 12px 24px;
+    margin-right: 4px;
     border-top-left-radius: {RADIUS_MD};
     border-top-right-radius: {RADIUS_MD};
-    font-weight: 600;
+    font-weight: 500;
     font-size: 13px;
-    min-width: 110px;
-    min-height: 20px;
+    min-width: 100px;
+    min-height: 18px;
     border: 1px solid transparent;
     border-bottom: none;
 }}
@@ -125,7 +131,7 @@ QTabBar::tab:selected {{
     background-color: {BG_SURFACE};
     color: {PRIMARY};
     border: 1px solid {BORDER_DEFAULT};
-    border-bottom: 2px solid {PRIMARY};
+    border-bottom: 3px solid {PRIMARY};
 }}
 
 /* ========== 分组框 ========== */
@@ -133,7 +139,7 @@ QGroupBox {{
     background-color: {BG_SURFACE};
     border: 1px solid {BORDER_DEFAULT};
     border-radius: {RADIUS_LG};
-    margin-top: 28px;
+    margin-top: 24px;
     padding: 28px 24px 24px 24px;
     font-weight: 600;
     font-size: 14px;
@@ -143,9 +149,9 @@ QGroupBox {{
 QGroupBox::title {{
     subcontrol-origin: margin;
     subcontrol-position: top left;
-    left: 24px;
+    left: 20px;
     top: 2px;
-    padding: 0 12px;
+    padding: 0 10px;
     background-color: {BG_SURFACE};
     color: {PRIMARY};
 }}
@@ -159,24 +165,25 @@ QLabel {{
 
 /* ========== 输入框 ========== */
 QLineEdit {{
-    background-color: {BG_BASE};
+    background-color: {BG_SURFACE};
     border: 1px solid {BORDER_DEFAULT};
     border-radius: {RADIUS_MD};
     padding: 0 16px;
     min-height: {INPUT_HEIGHT};
     height: {INPUT_HEIGHT};
     color: {TEXT_PRIMARY};
-    selection-background-color: {PRIMARY};
-    selection-color: {BG_BASE};
+    selection-background-color: {PRIMARY_LIGHTER};
+    selection-color: {TEXT_PRIMARY};
     font-size: 13px;
 }}
 
 QLineEdit:hover {{
     border-color: {TEXT_MUTED};
+    background-color: {BG_ELEVATED};
 }}
 
 QLineEdit:focus {{
-    border: 2px solid {PRIMARY};
+    border: 2px solid {BORDER_FOCUS};
     padding: 0 15px;
     background-color: {BG_SURFACE};
 }}
@@ -184,7 +191,7 @@ QLineEdit:focus {{
 QLineEdit:disabled {{
     background-color: {BG_ELEVATED};
     color: {TEXT_MUTED};
-    border-color: {BORDER_MUTED};
+    border-color: {BORDER_LIGHT};
 }}
 
 QLineEdit::placeholder {{
@@ -193,7 +200,7 @@ QLineEdit::placeholder {{
 
 /* ========== 数字输入框 ========== */
 QSpinBox {{
-    background-color: {BG_BASE};
+    background-color: {BG_SURFACE};
     border: 1px solid {BORDER_DEFAULT};
     border-radius: {RADIUS_MD};
     padding: 0 16px;
@@ -208,25 +215,43 @@ QSpinBox:hover {{
 }}
 
 QSpinBox:focus {{
-    border: 2px solid {PRIMARY};
+    border: 2px solid {BORDER_FOCUS};
 }}
 
 QSpinBox::up-button, QSpinBox::down-button {{
     background-color: {BG_ELEVATED};
     border: none;
-    width: 30px;
+    width: 28px;
     subcontrol-origin: border;
 }}
 
 QSpinBox::up-button:hover, QSpinBox::down-button:hover {{
-    background-color: {PRIMARY};
+    background-color: {PRIMARY_LIGHTER};
+}}
+
+/* ========== 文本编辑框 ========== */
+QTextEdit {{
+    background-color: {BG_SURFACE};
+    border: 1px solid {BORDER_DEFAULT};
+    border-radius: {RADIUS_MD};
+    padding: 12px 16px;
+    color: {TEXT_PRIMARY};
+    font-size: 13px;
+}}
+
+QTextEdit:hover {{
+    border-color: {TEXT_MUTED};
+}}
+
+QTextEdit:focus {{
+    border: 2px solid {BORDER_FOCUS};
 }}
 
 /* ========== 复选框 ========== */
 QCheckBox {{
-    spacing: 14px;
-    min-height: 52px;
-    padding: 14px 18px;
+    spacing: 12px;
+    min-height: 48px;
+    padding: 12px 16px;
     color: {TEXT_PRIMARY};
     background-color: transparent;
     border-radius: {RADIUS_MD};
@@ -237,15 +262,15 @@ QCheckBox:hover {{
 }}
 
 QCheckBox::indicator {{
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     border-radius: 6px;
     border: 2px solid {BORDER_DEFAULT};
-    background-color: {BG_BASE};
+    background-color: {BG_SURFACE};
 }}
 
 QCheckBox::indicator:hover {{
-    border-color: {PRIMARY};
+    border-color: {PRIMARY_LIGHT};
 }}
 
 QCheckBox::indicator:checked {{
@@ -255,14 +280,14 @@ QCheckBox::indicator:checked {{
 
 QCheckBox::indicator:disabled {{
     background-color: {BG_ELEVATED};
-    border-color: {BORDER_MUTED};
+    border-color: {BORDER_LIGHT};
 }}
 
 /* ========== 单选按钮 ========== */
 QRadioButton {{
-    spacing: 14px;
-    min-height: 52px;
-    padding: 14px 18px;
+    spacing: 12px;
+    min-height: 48px;
+    padding: 12px 16px;
     color: {TEXT_PRIMARY};
     background-color: transparent;
     border-radius: {RADIUS_MD};
@@ -273,45 +298,46 @@ QRadioButton:hover {{
 }}
 
 QRadioButton::indicator {{
-    width: 22px;
-    height: 22px;
-    border-radius: 11px;
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
     border: 2px solid {BORDER_DEFAULT};
-    background-color: {BG_BASE};
+    background-color: {BG_SURFACE};
 }}
 
 QRadioButton::indicator:hover {{
-    border-color: {PRIMARY};
+    border-color: {PRIMARY_LIGHT};
 }}
 
 QRadioButton::indicator:checked {{
-    border: 6px solid {PRIMARY};
-    background-color: {BG_BASE};
+    border: 5px solid {PRIMARY};
+    background-color: {BG_SURFACE};
 }}
 
 /* ========== 下拉框 ========== */
 QComboBox {{
-    background-color: {BG_BASE};
+    background-color: {BG_SURFACE};
     border: 1px solid {BORDER_DEFAULT};
     border-radius: {RADIUS_MD};
     padding: 0 16px;
     min-height: {INPUT_HEIGHT};
     height: {INPUT_HEIGHT};
     color: {TEXT_PRIMARY};
-    min-width: 150px;
+    min-width: 140px;
 }}
 
 QComboBox:hover {{
     border-color: {TEXT_MUTED};
+    background-color: {BG_ELEVATED};
 }}
 
 QComboBox:focus {{
-    border-color: {PRIMARY};
+    border-color: {BORDER_FOCUS};
 }}
 
 QComboBox::drop-down {{
     border: none;
-    width: 40px;
+    width: 36px;
 }}
 
 QComboBox QAbstractItemView {{
@@ -319,14 +345,14 @@ QComboBox QAbstractItemView {{
     border: 1px solid {BORDER_DEFAULT};
     border-radius: {RADIUS_MD};
     padding: 8px;
-    selection-background-color: {BG_ELEVATED};
+    selection-background-color: {PRIMARY_PALE};
     selection-color: {PRIMARY};
     outline: none;
 }}
 
 /* ========== 列表 ========== */
 QListWidget {{
-    background-color: {BG_BASE};
+    background-color: {BG_SURFACE};
     border: 1px solid {BORDER_DEFAULT};
     border-radius: {RADIUS_MD};
     padding: 8px;
@@ -336,9 +362,9 @@ QListWidget {{
 QListWidget::item {{
     background-color: transparent;
     border-radius: {RADIUS_SM};
-    padding: 14px 18px;
+    padding: 12px 16px;
     margin: 2px 0;
-    min-height: 20px;
+    min-height: 18px;
 }}
 
 QListWidget::item:hover {{
@@ -346,52 +372,56 @@ QListWidget::item:hover {{
 }}
 
 QListWidget::item:selected {{
-    background-color: {BG_ELEVATED};
-    border: 1px solid {PRIMARY};
+    background-color: {PRIMARY_PALE};
+    border: 1px solid {PRIMARY_LIGHT};
     color: {PRIMARY};
 }}
 
 /* ========== 按钮 ========== */
 QPushButton {{
-    background-color: {BG_ELEVATED};
+    background-color: {BG_SURFACE};
     border: 1px solid {BORDER_DEFAULT};
     border-radius: {RADIUS_MD};
     padding: 0 24px;
     min-height: {BUTTON_HEIGHT};
     height: {BUTTON_HEIGHT};
     color: {TEXT_PRIMARY};
-    font-weight: 600;
+    font-weight: 500;
     font-size: 13px;
-    min-width: 120px;
+    min-width: 110px;
 }}
 
 QPushButton:hover {{
-    background-color: {BG_HOVER};
+    background-color: {BG_ELEVATED};
     border-color: {TEXT_MUTED};
 }}
 
 QPushButton:pressed {{
-    background-color: {PRIMARY};
+    background-color: {PRIMARY_LIGHTER};
     color: {BG_BASE};
-    border-color: {PRIMARY};
+    border-color: {PRIMARY_LIGHTER};
 }}
 
 QPushButton:disabled {{
     background-color: {BG_ELEVATED};
     color: {TEXT_MUTED};
-    border-color: {BORDER_MUTED};
+    border-color: {BORDER_LIGHT};
 }}
 
 /* 主要按钮 */
 QPushButton[primary="true"] {{
     background-color: {PRIMARY};
     border-color: {PRIMARY};
-    color: {BG_BASE};
+    color: white;
 }}
 
 QPushButton[primary="true"]:hover {{
-    background-color: {PRIMARY_DIM};
-    border-color: {PRIMARY_DIM};
+    background-color: {PRIMARY_LIGHT};
+    border-color: {PRIMARY_LIGHT};
+}}
+
+QPushButton[primary="true"]:pressed {{
+    background-color: {PRIMARY_LIGHTER};
 }}
 
 /* 次要按钮 */
@@ -404,7 +434,7 @@ QPushButton[secondary="true"] {{
 QPushButton[secondary="true"]:hover {{
     border-color: {PRIMARY};
     color: {PRIMARY};
-    background-color: {PRIMARY_SUBTLE};
+    background-color: {PRIMARY_PALE};
 }}
 
 /* 成功按钮 */
@@ -415,7 +445,7 @@ QPushButton[success="true"] {{
 }}
 
 QPushButton[success="true"]:hover {{
-    background-color: rgba(0, 255, 157, 0.12);
+    background-color: {PRIMARY_PALE};
 }}
 
 /* 危险按钮 */
@@ -426,33 +456,40 @@ QPushButton[danger="true"] {{
 }}
 
 QPushButton[danger="true"]:hover {{
-    background-color: rgba(255, 51, 102, 0.12);
+    background-color: rgba(196, 69, 54, 0.08);
 }}
 
 /* ========== 进度条 ========== */
 QProgressBar {{
     background-color: {BG_ELEVATED};
     border: none;
-    border-radius: 4px;
-    height: 10px;
+    border-radius: 6px;
+    height: 12px;
     text-align: center;
     color: transparent;
 }}
 
 QProgressBar::chunk {{
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 {PRIMARY}, stop:1 {SUCCESS});
-    border-radius: 4px;
+        stop:0 {PRIMARY_LIGHT}, stop:1 {PRIMARY_LIGHTER});
+    border-radius: 6px;
 }}
 
-/* ========== 滚动条 - 隐藏 ========== */
+/* ========== 滚动条 ========== */
 QScrollBar:vertical {{
     background-color: transparent;
-    width: 0px;
+    width: 8px;
+    margin: 4px 2px;
 }}
 
 QScrollBar::handle:vertical {{
-    background-color: transparent;
+    background-color: {BORDER_DEFAULT};
+    border-radius: 4px;
+    min-height: 40px;
+}}
+
+QScrollBar::handle:vertical:hover {{
+    background-color: {TEXT_MUTED};
 }}
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
@@ -461,11 +498,18 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
 
 QScrollBar:horizontal {{
     background-color: transparent;
-    height: 0px;
+    height: 8px;
+    margin: 2px 4px;
 }}
 
 QScrollBar::handle:horizontal {{
-    background-color: transparent;
+    background-color: {BORDER_DEFAULT};
+    border-radius: 4px;
+    min-width: 40px;
+}}
+
+QScrollBar::handle:horizontal:hover {{
+    background-color: {TEXT_MUTED};
 }}
 
 /* ========== 消息框 ========== */
@@ -475,17 +519,17 @@ QMessageBox {{
 
 QMessageBox QLabel {{
     color: {TEXT_PRIMARY};
-    min-width: 200px;
+    min-width: 220px;
 }}
 
 QMessageBox QPushButton {{
-    min-width: 100px;
+    min-width: 90px;
 }}
 
 /* ========== 工具提示 ========== */
 QToolTip {{
-    background-color: {BG_ELEVATED};
-    border: 1px solid {PRIMARY};
+    background-color: {BG_SURFACE};
+    border: 1px solid {PRIMARY_LIGHT};
     border-radius: {RADIUS_SM};
     padding: 8px 14px;
     color: {TEXT_PRIMARY};
@@ -502,12 +546,12 @@ QMenu {{
 QMenu::item {{
     background-color: transparent;
     border-radius: {RADIUS_SM};
-    padding: 12px 20px;
+    padding: 10px 18px;
     margin: 2px 0;
 }}
 
 QMenu::item:selected {{
-    background-color: {BG_ELEVATED};
+    background-color: {PRIMARY_PALE};
     color: {PRIMARY};
 }}
 
@@ -524,7 +568,7 @@ QLabel#emptyIcon {{
 }}
 
 QLabel#emptyTitle {{
-    font-size: 18px;
+    font-size: 17px;
     font-weight: 600;
     color: {TEXT_PRIMARY};
 }}
@@ -543,14 +587,13 @@ USER_BAR_STYLE = f"""
 QFrame#userBar {{
     background-color: {BG_SURFACE};
     border-bottom: 1px solid {BORDER_DEFAULT};
-    min-height: 72px;
+    min-height: 68px;
 }}
 
 QLabel#appTitle {{
-    font-size: 17px;
-    font-weight: 700;
+    font-size: 16px;
+    font-weight: 600;
     color: {PRIMARY};
-    letter-spacing: 1px;
 }}
 
 QLabel#userLabel {{
@@ -560,14 +603,14 @@ QLabel#userLabel {{
 }}
 
 QPushButton#loginBtn {{
-    background-color: transparent;
-    border: 2px solid {PRIMARY};
-    color: {PRIMARY};
-    font-weight: 600;
+    background-color: {PRIMARY};
+    border: none;
+    color: white;
+    font-weight: 500;
 }}
 
 QPushButton#loginBtn:hover {{
-    background-color: {PRIMARY_GLOW};
+    background-color: {PRIMARY_LIGHT};
 }}
 
 QPushButton#logoutBtn {{
@@ -579,7 +622,7 @@ QPushButton#logoutBtn {{
 QPushButton#logoutBtn:hover {{
     border-color: {ERROR};
     color: {ERROR};
-    background-color: rgba(255, 51, 102, 0.1);
+    background-color: rgba(196, 69, 54, 0.06);
 }}
 """
 
@@ -590,7 +633,7 @@ QStatusBar {{
     color: {TEXT_MUTED};
     font-size: 12px;
     padding: 8px 20px;
-    min-height: 32px;
+    min-height: 30px;
 }}
 """
 
@@ -598,7 +641,7 @@ AD_BAR_STYLE = f"""
 QFrame#adBar {{
     background-color: {BG_ELEVATED};
     border-top: 1px solid {BORDER_DEFAULT};
-    min-height: 52px;
+    min-height: 48px;
 }}
 
 QLabel#adLabel {{
@@ -613,12 +656,12 @@ QFrame#emptyState {{
 }}
 
 QLabel#emptyIcon {{
-    font-size: 56px;
+    font-size: 52px;
     color: {TEXT_MUTED};
 }}
 
 QLabel#emptyTitle {{
-    font-size: 18px;
+    font-size: 17px;
     font-weight: 600;
     color: {TEXT_PRIMARY};
 }}
@@ -629,6 +672,56 @@ QLabel#emptyDesc {{
 }}
 """
 
+# 侧边栏样式
+SIDEBAR_STYLE = f"""
+QFrame#sidebar {{
+    background-color: {BG_SURFACE};
+    border-right: 1px solid {BORDER_DEFAULT};
+    min-width: 200px;
+    max-width: 220px;
+}}
+
+QLabel#logoText {{
+    font-size: 15px;
+    font-weight: 600;
+    color: {PRIMARY};
+    padding: 16px 20px;
+}}
+
+QPushButton#navBtn {{
+    background-color: transparent;
+    border: none;
+    border-radius: {RADIUS_SM};
+    padding: 14px 20px;
+    text-align: left;
+    color: {TEXT_SECONDARY};
+    font-size: 13px;
+    font-weight: 500;
+}}
+
+QPushButton#navBtn:hover {{
+    background-color: {BG_ELEVATED};
+    color: {TEXT_PRIMARY};
+}}
+
+QPushButton#navBtn:checked {{
+    background-color: {PRIMARY_PALE};
+    color: {PRIMARY};
+    border-left: 3px solid {PRIMARY};
+}}
+
+QLabel#storageLabel {{
+    color: {TEXT_MUTED};
+    font-size: 11px;
+    padding: 8px 20px;
+}}
+
+QLabel#userLabel {{
+    color: {TEXT_SECONDARY};
+    font-size: 12px;
+    padding: 4px 20px;
+}}
+"""
 
 # 卡片样式 - 用于设置页面等
 CARD_STYLE = f"""
@@ -663,6 +756,11 @@ def get_ad_bar_style():
 def get_empty_state_style():
     """获取空状态样式"""
     return EMPTY_STATE_STYLE
+
+
+def get_sidebar_style():
+    """获取侧边栏样式"""
+    return SIDEBAR_STYLE
 
 
 def get_card_style():

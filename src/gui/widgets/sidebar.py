@@ -9,8 +9,10 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 
 from gui.styles import (
-    PRIMARY, PRIMARY_DIM, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED,
-    BG_SURFACE, BG_ELEVATED, BG_HOVER, BORDER_DEFAULT, RADIUS_MD
+    PRIMARY, PRIMARY_LIGHT, PRIMARY_LIGHTER, PRIMARY_PALE,
+    TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED,
+    BG_SURFACE, BG_ELEVATED, BG_HOVER, BORDER_DEFAULT, RADIUS_MD,
+    ERROR, ERROR_LIGHT
 )
 from utils.config import get_config
 
@@ -40,7 +42,7 @@ class NavButton(QPushButton):
         if self._active:
             self.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: {BG_HOVER};
+                    background-color: {PRIMARY_PALE};
                     color: {PRIMARY};
                     border: none;
                     border-radius: {RADIUS_MD};
@@ -159,16 +161,16 @@ class Sidebar(QFrame):
         self.login_btn = QPushButton("GitHub 登录")
         self.login_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: transparent;
-                border: 1px solid {PRIMARY};
-                color: {PRIMARY};
+                background-color: {PRIMARY};
+                border: none;
+                color: white;
                 border-radius: {RADIUS_MD};
-                padding: 8px 16px;
+                padding: 10px 16px;
                 font-size: 12px;
                 font-weight: 600;
             }}
             QPushButton:hover {{
-                background-color: rgba(0, 240, 255, 0.1);
+                background-color: {PRIMARY_LIGHT};
             }}
         """)
         user_layout.addWidget(self.login_btn)
@@ -181,12 +183,13 @@ class Sidebar(QFrame):
                 border: 1px solid {BORDER_DEFAULT};
                 color: {TEXT_SECONDARY};
                 border-radius: {RADIUS_MD};
-                padding: 8px 16px;
+                padding: 10px 16px;
                 font-size: 12px;
             }}
             QPushButton:hover {{
-                border-color: #ff3366;
-                color: #ff3366;
+                border-color: {ERROR};
+                color: {ERROR};
+                background-color: rgba(196, 69, 54, 0.06);
             }}
         """)
         self.logout_btn.setVisible(False)
