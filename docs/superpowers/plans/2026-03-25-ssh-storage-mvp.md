@@ -404,45 +404,33 @@ Expected: FAIL (方法不存在)
 - [ ] **Step 3: 实现 upload 方法**
 
 ```python
-# tests/test_ssh_storage.py - 添加到文件末尾
+# src/storage/ssh_storage.py - 添加到 _ensure_backup_dir 方法之后
 
-class TestSSHStorageDownload:
-    """测试下载功能"""
+    def upload(self, local_path: str, remote_path: str) -> bool:
+        """上传备份文件到 SSH 服务器
 
-    @patch('storage.ssh_storage.SSHClient')
-    def test_download_success(self, mock_ssh_client, tmp_path):
-        """测试下载成功"""
-        from storage.ssh_storage import SSHStorage
+        Args:
+            local_path: 本地文件路径
+            remote_path: 远程相对路径
 
-        mock_client = MagicMock()
-        mock_sftp = MagicMock()
-        mock_client.open_sftp.return_value = mock_sftp
-        mock_ssh_client.return_value = mock_client
+        Returns:
+            bool: 上传是否成功
 
-        dest_file = tmp_path / "downloaded.ccb"
+        Raises:
+            BackupError: 上传失败
+        """
+        from core.exceptions import BackupError
 
-        with SSHStorage("host", 22, "user", "pass") as storage:
-            result = storage.download("backup.ccb", str(dest_file))
-            assert result is True
-            mock_sftp.get.assert_called_once()
-
-    @patch('storage.ssh_storage.SSHClient')
-    def test_download_file_not_found(self, mock_ssh_client, tmp_path):
-        """测试下载文件不存在"""
-        from storage.ssh_storage import SSHStorage
-        from core.exceptions import RestoreError
-
-        mock_client = MagicMock()
-        mock_sftp = MagicMock()
-        mock_client.open_sftp.return_value = mock_sftp
-        mock_ssh_client.return_value = mock_client
-        mock_sftp.get.side_effect = FileNotFoundError("No such file")
-
-        dest_file = tmp_path / "downloaded.ccb"
-
-        with pytest.raises(RestoreError):
-            with SSHStorage("host", 22, "user", "pass") as storage:
-                storage.download("nonexistent.ccb", str(dest_file))
+        try:
+            self._ensure_backup_dir()
+            remote_full_path = f"{self.BACKUP_DIR}/{remote_path}"
+            self._sftp.put(local_path, remote_full_path)
+            logger.info(f"Upload successful: {local_path} -> {remote_full_path}")
+            return True
+        except FileNotFoundError as e:
+            raise BackupError(f"Local file not found: {local_path}")
+        except Exception as e:
+            raise BackupError(f"Upload failed: {e}")
 ```
 
 - [ ] **Step 4: 运行测试验证通过**

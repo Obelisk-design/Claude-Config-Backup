@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
     QLabel, QListWidget, QListWidgetItem, QFileDialog, QMessageBox,
     QCheckBox, QGroupBox, QScrollArea, QFrame, QRadioButton
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
 
 from core.restore_manager import RestoreManager
 from storage.github_storage import GitHubStorage
@@ -16,6 +16,73 @@ from auth.token_manager import TokenManager
 from security.crypto import Crypto
 from utils.config import get_config
 from utils.logger import logger
+
+class LoadCloudBackupsWorker(QThread):
+    """加载云端备份工作线程"""
+    finished = pyqtSignal(list)
+    error = pyqtSignal(str)
+
+    def __init__(self, storage, is_ssh):
+        super().__init__()
+        self.storage = storage
+        self.is_ssh = is_ssh
+
+    def run(self):
+        try:
+            if self.is_ssh:
+                with self.storage:
+                    files = self.storage.list_files()
+            else:
+                files = self.storage.list_files()
+            self.finished.emit(files)
+        except Exception as e:
+            self.error.emit(str(e))
+
+class RestoreWorker(QThread):
+    """恢复工作线程"""
+    finished = pyqtSignal(dict)  # result_dict
+    error = pyqtSignal(str)
+
+    def __init__(self, restore_manager, backup_file, skip_existing, create_rollback):
+        super().__init__()
+        self.restore_manager = restore_manager
+        self.backup_file = backup_file
+        self.skip_existing = skip_existing
+        self.create_rollback = create_rollback
+
+    def run(self):
+        try:
+            result = self.restore_manager.restore(
+                self.backup_file,
+                skip_existing=self.skip_existing,
+                create_rollback=self.create_rollback
+            )
+            self.finished.emit(result)
+        except Exception as e:
+            self.error.emit(str(e))
+
+class DownloadWorker(QThread):
+    """下载工作线程"""
+    finished = pyqtSignal(object)  # cache_path (Path)
+    error = pyqtSignal(str)
+
+    def __init__(self, storage, cloud_file, cache_path, is_ssh=False):
+        super().__init__()
+        self.storage = storage
+        self.cloud_file = cloud_file
+        self.cache_path = cache_path
+        self.is_ssh = is_ssh
+
+    def run(self):
+        try:
+            if self.is_ssh:
+                with self.storage:
+                    self.storage.download(self.cloud_file["path"], self.cache_path)
+            else:
+                self.storage.download(self.cloud_file["path"], self.cache_path)
+            self.finished.emit(self.cache_path)
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 class RestoreTab(QWidget):
@@ -249,10 +316,24 @@ class RestoreTab(QWidget):
             # 本地存储不支持云端备份
             return
 
-        files = self.storage.list_files()
-
         self.backup_list.clear()
         self.selected_cloud_file = None
+
+        # 添加加载中提示
+        item = QListWidgetItem("⏳ 正在加载云端备份...")
+        item.setFlags(item.flags() & ~Qt.ItemIsSelectable) # 设置为不可选中
+        self.backup_list.addItem(item)
+
+        is_ssh = storage_type == "ssh" and isinstance(self.storage, SSHStorage)
+        self.load_worker = LoadCloudBackupsWorker(self.storage, is_ssh)
+        self.load_worker.finished.connect(self._on_load_cloud_backups_finished)
+        self.load_worker.error.connect(self._on_load_cloud_backups_error)
+        self.load_worker.finished.connect(self.load_worker.deleteLater)
+        self.load_worker.start()
+
+    def _on_load_cloud_backups_finished(self, files: list):
+        """加载云端备份完成回调"""
+        self.backup_list.clear()
 
         for f in files:
             item = QListWidgetItem(
@@ -263,81 +344,107 @@ class RestoreTab(QWidget):
 
         if self.backup_list.count() > 0:
             self.backup_list.setCurrentRow(0)
-        else:
-            QMessageBox.information(self, "提示", "当前云端还没有可恢复的备份")
+
+        # 如果是预选操作，在这里恢复预选
+        if hasattr(self, '_pending_select_path') and self._pending_select_path:
+            for index in range(self.backup_list.count()):
+                item = self.backup_list.item(index)
+                metadata = item.data(Qt.UserRole) or {}
+                if metadata.get("path") == self._pending_select_path:
+                    self.backup_list.setCurrentRow(index)
+                    break
+            self._pending_select_path = None
+
+    def _on_load_cloud_backups_error(self, error_msg: str):
+        """加载云端备份失败回调"""
+        self.backup_list.clear()
+        item = QListWidgetItem(f"❌ 加载失败: {error_msg}")
+        item.setFlags(item.flags() & ~Qt.ItemIsSelectable)
+        self.backup_list.addItem(item)
 
     def select_cloud_backup(self, backup_file: dict):
         """从其他页面预选云端备份"""
         self.cloud_radio.setChecked(True)
+        self._pending_select_path = backup_file.get("path")
         self._load_cloud_backups()
-
-        for index in range(self.backup_list.count()):
-            item = self.backup_list.item(index)
-            metadata = item.data(Qt.UserRole) or {}
-            if metadata.get("path") == backup_file.get("path"):
-                self.backup_list.setCurrentRow(index)
-                break
-
-    def _resolve_backup_file(self):
-        """解析当前选择的备份文件"""
-        if self.local_radio.isChecked():
-            if not self.selected_file:
-                QMessageBox.warning(self, "提示", "请选择备份文件")
-                return None, None
-            return Path(self.selected_file), None
-
-        if not self.selected_cloud_file:
-            QMessageBox.warning(self, "提示", "请选择云端备份")
-            return None, None
-
-        cache_path = self.restore_manager.cache_dir / self.selected_cloud_file["name"]
-
-        # 根据存储类型下载
-        storage_type = self.config.get("storage.type", "github")
-        if storage_type == "ssh" and isinstance(self.storage, SSHStorage):
-            # SSH 需要 context manager
-            with self.storage:
-                self.storage.download(self.selected_cloud_file["path"], cache_path)
-        else:
-            self.storage.download(self.selected_cloud_file["path"], cache_path)
-
-        return cache_path, cache_path
 
     def _on_restore(self):
         """执行恢复"""
-        backup_file = None
-        cleanup_path = None
-
-        try:
-            backup_file, cleanup_path = self._resolve_backup_file()
-            if not backup_file:
+        if self.local_radio.isChecked():
+            if not self.selected_file:
+                QMessageBox.warning(self, "提示", "请选择备份文件")
                 return
+            self._start_restore_process(Path(self.selected_file), None)
+            return
 
-            self.restore_btn.setEnabled(False)
-            self.restore_btn.setText("⏳ 恢复中...")
+        if not self.selected_cloud_file:
+            QMessageBox.warning(self, "提示", "请选择云端备份")
+            return
 
-            # 执行同步恢复
-            result = self.restore_manager.restore(
-                backup_file,
-                skip_existing=self.skip_existing.isChecked(),
-                create_rollback=self.backup_current.isChecked()
+        cache_path = self.restore_manager.cache_dir / self.selected_cloud_file["name"]
+        storage_type = self.config.get("storage.type", "github")
+        is_ssh = storage_type == "ssh" and isinstance(self.storage, SSHStorage)
+
+        self.restore_btn.setEnabled(False)
+        self.restore_btn.setText("⏳ 下载中...")
+
+        self.download_worker = DownloadWorker(self.storage, self.selected_cloud_file, cache_path, is_ssh)
+        self.download_worker.finished.connect(lambda cp: self._start_restore_process(cp, cp))
+        self.download_worker.error.connect(self._on_download_error)
+        self.download_worker.finished.connect(self.download_worker.deleteLater)
+        self.download_worker.start()
+
+    def _on_download_error(self, error_msg: str):
+        """下载失败回调"""
+        self.restore_btn.setEnabled(True)
+        self.restore_btn.setText("🔄 开始恢复")
+        logger.error(f"下载备份失败: {error_msg}")
+        QMessageBox.critical(self, "错误", f"下载备份失败：{error_msg}")
+
+    def _start_restore_process(self, backup_file: Path, cleanup_path: Path):
+        """启动恢复线程"""
+        self.restore_btn.setEnabled(False)
+        self.restore_btn.setText("⏳ 恢复中...")
+
+        self.current_cleanup_path = cleanup_path
+
+        self.restore_worker = RestoreWorker(
+            self.restore_manager,
+            backup_file,
+            self.skip_existing.isChecked(),
+            self.backup_current.isChecked()
+        )
+        self.restore_worker.finished.connect(self._on_restore_finished)
+        self.restore_worker.error.connect(self._on_restore_error)
+        self.restore_worker.finished.connect(self.restore_worker.deleteLater)
+        self.restore_worker.start()
+
+    def _on_restore_finished(self, result: dict):
+        """恢复完成回调"""
+        if result["success"]:
+            QMessageBox.information(
+                self,
+                "成功",
+                f"恢复完成！\n共恢复 {len(result['restored_files'])} 个文件"
             )
+        else:
+            QMessageBox.critical(self, "错误", "\n".join(result["errors"]))
 
-            if result["success"]:
-                QMessageBox.information(
-                    self,
-                    "成功",
-                    f"恢复完成！\n共恢复 {len(result['restored_files'])} 个文件"
-                )
-            else:
-                QMessageBox.critical(self, "错误", "\n".join(result["errors"]))
+        self._cleanup_and_reset()
 
-        except Exception as e:
-            logger.error(f"恢复失败: {e}")
-            QMessageBox.critical(self, "错误", f"恢复失败：{str(e)}")
+    def _on_restore_error(self, error_msg: str):
+        """恢复失败回调"""
+        logger.error(f"恢复失败: {error_msg}")
+        QMessageBox.critical(self, "错误", f"恢复失败：{error_msg}")
+        self._cleanup_and_reset()
 
-        finally:
-            if cleanup_path and cleanup_path.exists():
-                cleanup_path.unlink(missing_ok=True)
-            self.restore_btn.setEnabled(True)
-            self.restore_btn.setText("🔄 开始恢复")
+    def _cleanup_and_reset(self):
+        """清理缓存并重置 UI"""
+        if hasattr(self, 'current_cleanup_path') and self.current_cleanup_path and self.current_cleanup_path.exists():
+            try:
+                self.current_cleanup_path.unlink(missing_ok=True)
+            except Exception as e:
+                logger.warning(f"无法清理缓存文件: {e}")
+
+        self.restore_btn.setEnabled(True)
+        self.restore_btn.setText("🔄 开始恢复")

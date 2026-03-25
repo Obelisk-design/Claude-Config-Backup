@@ -28,9 +28,9 @@ class LoginThread(QThread):
             # 获取授权码
             result = self.oauth.start_callback_server(timeout=300)
             if not result:
-                self.error.emit("授权超时")
+                self.error.emit("授权超时或被取消")
                 return
-                
+
             code, state = result
 
             # 换取 token
@@ -104,6 +104,15 @@ class LoginDialog(QDialog):
         client_secret = config.get("github.client_secret") or "6502c846a2ddaf23946644c1e883017969caa0b3"
         redirect_port = config.get("github.redirect_port", 18080)
 
+        # 校验端口是否被占用，提供友好提示
+        import socket
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('localhost', redirect_port))
+        except OSError:
+            QMessageBox.critical(self, "端口被占用", f"回调端口 {redirect_port} 已被占用。\n请在设置中更改端口或关闭占用该端口的程序。")
+            return
+
         self.oauth = GitHubOAuth(
             client_id=client_id,
             client_secret=client_secret,
@@ -118,6 +127,7 @@ class LoginDialog(QDialog):
         self.login_thread = LoginThread(self.oauth)
         self.login_thread.success.connect(self._on_login_success)
         self.login_thread.error.connect(self._on_login_error)
+        self.login_thread.finished.connect(self.login_thread.deleteLater) # 避免线程对象内存泄漏
         self.login_thread.start()
 
     def _on_login_success(self, token: str, user_info: dict):
@@ -163,11 +173,11 @@ class LoginDialog(QDialog):
         msg_box.setWindowTitle("登录失败")
         msg_box.setText("GitHub 授权过程中发生错误：")
         msg_box.setInformativeText(user_friendly_error)
-        
+
         # 将原始错误信息放在详细信息里供折叠查看
         if user_friendly_error != error:
             msg_box.setDetailedText(f"原始错误信息:\n{error}")
-            
+
         msg_box.setMinimumWidth(400)
         msg_box.setStyleSheet("QLabel{min-width: 300px;}") # 强制拉宽
         msg_box.exec_()

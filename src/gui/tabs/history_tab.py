@@ -8,13 +8,80 @@ from PyQt5.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QFrame,
     QLabel, QMessageBox, QStackedWidget, QFileDialog
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
 
 from storage.github_storage import GitHubStorage
 from storage.ssh_storage import SSHStorage
 from auth.token_manager import TokenManager
 from security.crypto import Crypto
 from utils.config import get_config
+
+class LoadHistoryWorker(QThread):
+    """历史记录加载工作线程"""
+    finished = pyqtSignal(list)
+    error = pyqtSignal(str)
+
+    def __init__(self, storage, is_ssh):
+        super().__init__()
+        self.storage = storage
+        self.is_ssh = is_ssh
+
+    def run(self):
+        try:
+            if self.is_ssh:
+                with self.storage:
+                    files = self.storage.list_files()
+            else:
+                files = self.storage.list_files()
+            self.finished.emit(files)
+        except Exception as e:
+            self.error.emit(str(e))
+
+class DownloadWorker(QThread):
+    """下载工作线程"""
+    finished = pyqtSignal(str)  # save_path
+    error = pyqtSignal(str)
+
+    def __init__(self, storage, backup_path, save_path, is_ssh):
+        super().__init__()
+        self.storage = storage
+        self.backup_path = backup_path
+        self.save_path = save_path
+        self.is_ssh = is_ssh
+
+    def run(self):
+        try:
+            if self.is_ssh:
+                with self.storage:
+                    self.storage.download(self.backup_path, self.save_path)
+            else:
+                self.storage.download(self.backup_path, self.save_path)
+            self.finished.emit(self.save_path)
+        except Exception as e:
+            self.error.emit(str(e))
+
+class DeleteWorker(QThread):
+    """删除工作线程"""
+    finished = pyqtSignal(str)  # backup_name
+    error = pyqtSignal(str)
+
+    def __init__(self, storage, backup_path, backup_name, is_ssh):
+        super().__init__()
+        self.storage = storage
+        self.backup_path = backup_path
+        self.backup_name = backup_name
+        self.is_ssh = is_ssh
+
+    def run(self):
+        try:
+            if self.is_ssh:
+                with self.storage:
+                    self.storage.delete(self.backup_path)
+            else:
+                self.storage.delete(self.backup_path)
+            self.finished.emit(self.backup_name)
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 class EmptyStateWidget(QFrame):
@@ -195,57 +262,61 @@ class HistoryTab(QWidget):
         self.refresh_btn.setEnabled(False)
         self.refresh_btn.setText("⏳ 刷新中...")
 
-        try:
-            # SSH 需要 context manager
-            if storage_type == "ssh" and isinstance(self.storage, SSHStorage):
-                with self.storage:
-                    files = self.storage.list_files()
-            else:
-                files = self.storage.list_files()
+        is_ssh = storage_type == "ssh" and isinstance(self.storage, SSHStorage)
 
-            if not files:
-                # 显示空状态
-                self.stack.setCurrentWidget(self.empty_state)
-            else:
-                # 显示列表
-                self.table.setRowCount(len(files))
-                for row, f in enumerate(files):
-                    self.table.setItem(row, 0, QTableWidgetItem(f["name"]))
-                    self.table.setItem(row, 1, QTableWidgetItem(f"{f['size'] / 1024:.1f} KB"))
-                    self.table.setItem(row, 2, QTableWidgetItem(self._format_created_at(f.get("created_at"))))
+        self.load_worker = LoadHistoryWorker(self.storage, is_ssh)
+        self.load_worker.finished.connect(self._on_load_finished)
+        self.load_worker.error.connect(self._on_load_error)
+        self.load_worker.finished.connect(self.load_worker.deleteLater)
+        self.load_worker.start()
 
-                    # 操作按钮
-                    btn_widget = QWidget()
-                    btn_layout = QHBoxLayout(btn_widget)
-                    btn_layout.setContentsMargins(8, 4, 8, 4)
-                    btn_layout.setSpacing(8)
+    def _on_load_finished(self, files: list):
+        """加载完成回调"""
+        self.refresh_btn.setEnabled(True)
+        self.refresh_btn.setText("🔄 刷新")
 
-                    restore_btn = QPushButton("恢复")
-                    restore_btn.setProperty("secondary", True)
-                    restore_btn.clicked.connect(lambda checked, backup=f: self._restore(backup))
-                    btn_layout.addWidget(restore_btn)
-
-                    download_btn = QPushButton("下载")
-                    download_btn.setProperty("secondary", True)
-                    download_btn.clicked.connect(lambda checked, backup=f: self._download(backup))
-                    btn_layout.addWidget(download_btn)
-
-                    delete_btn = QPushButton("删除")
-                    delete_btn.setProperty("danger", True)
-                    delete_btn.clicked.connect(lambda checked, backup=f: self._delete(backup))
-                    btn_layout.addWidget(delete_btn)
-
-                    self.table.setCellWidget(row, 3, btn_widget)
-
-                self.stack.setCurrentWidget(self.table_widget)
-
-        except Exception as e:
-            QMessageBox.critical(self, "加载失败", f"无法加载备份列表：{str(e)}")
+        if not files:
+            # 显示空状态
             self.stack.setCurrentWidget(self.empty_state)
+        else:
+            # 显示列表
+            self.table.setRowCount(len(files))
+            for row, f in enumerate(files):
+                self.table.setItem(row, 0, QTableWidgetItem(f["name"]))
+                self.table.setItem(row, 1, QTableWidgetItem(f"{f['size'] / 1024:.1f} KB"))
+                self.table.setItem(row, 2, QTableWidgetItem(self._format_created_at(f.get("created_at"))))
 
-        finally:
-            self.refresh_btn.setEnabled(True)
-            self.refresh_btn.setText("🔄 刷新")
+                # 操作按钮
+                btn_widget = QWidget()
+                btn_layout = QHBoxLayout(btn_widget)
+                btn_layout.setContentsMargins(8, 4, 8, 4)
+                btn_layout.setSpacing(8)
+
+                restore_btn = QPushButton("恢复")
+                restore_btn.setProperty("secondary", True)
+                restore_btn.clicked.connect(lambda checked, backup=f: self._restore(backup))
+                btn_layout.addWidget(restore_btn)
+
+                download_btn = QPushButton("下载")
+                download_btn.setProperty("secondary", True)
+                download_btn.clicked.connect(lambda checked, backup=f: self._download(backup))
+                btn_layout.addWidget(download_btn)
+
+                delete_btn = QPushButton("删除")
+                delete_btn.setProperty("danger", True)
+                delete_btn.clicked.connect(lambda checked, backup=f: self._delete(backup))
+                btn_layout.addWidget(delete_btn)
+
+                self.table.setCellWidget(row, 3, btn_widget)
+
+            self.stack.setCurrentWidget(self.table_widget)
+
+    def _on_load_error(self, error_msg: str):
+        """加载失败回调"""
+        self.refresh_btn.setEnabled(True)
+        self.refresh_btn.setText("🔄 刷新")
+        QMessageBox.critical(self, "加载失败", f"无法加载备份列表：{error_msg}")
+        self.stack.setCurrentWidget(self.empty_state)
 
     def _restore(self, backup_file: dict):
         """恢复指定备份"""
@@ -270,8 +341,49 @@ class HistoryTab(QWidget):
         if not save_path:
             return
 
-        try:
-            if storage_type == "ssh":
+        is_ssh = storage_type == "ssh"
+
+        # 对于 SSH 需要重构存储对象，因为它是临时的
+        storage = self.storage
+        if is_ssh:
+            password = self.config.get("ssh.password", "")
+            password_encrypted = self.config.get("ssh.password_encrypted", "")
+            if password_encrypted:
+                crypto = Crypto()
+                password = crypto.decrypt(password_encrypted)
+
+            storage = SSHStorage(
+                host=self.config.get("ssh.host", ""),
+                port=self.config.get("ssh.port", 22),
+                user=self.config.get("ssh.user", ""),
+                password=password
+            )
+
+        self.download_worker = DownloadWorker(storage, backup_file["path"], save_path, is_ssh)
+        self.download_worker.finished.connect(self._on_download_finished)
+        self.download_worker.error.connect(self._on_download_error)
+        self.download_worker.finished.connect(self.download_worker.deleteLater)
+        self.download_worker.start()
+
+    def _on_download_finished(self, save_path: str):
+        QMessageBox.information(self, "下载成功", f"备份已保存到：\n{save_path}")
+
+    def _on_download_error(self, error_msg: str):
+        QMessageBox.critical(self, "下载失败", f"无法下载备份：{error_msg}")
+
+    def _delete(self, backup_file: dict):
+        """删除指定备份"""
+        reply = QMessageBox.question(
+            self, "确认删除",
+            f"确定要删除备份 {backup_file['name']} 吗？\n此操作不可撤销。",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            storage_type = self.config.get("storage.type", "github")
+            is_ssh = storage_type == "ssh"
+
+            storage = self.storage
+            if is_ssh:
                 # SSH 需要 context manager，重新创建连接
                 password = self.config.get("ssh.password", "")
                 password_encrypted = self.config.get("ssh.password_encrypted", "")
@@ -285,46 +397,19 @@ class HistoryTab(QWidget):
                     user=self.config.get("ssh.user", ""),
                     password=password
                 )
-                with storage:
-                    storage.download(backup_file["path"], save_path)
-            else:
-                self.storage.download(backup_file["path"], save_path)
-            QMessageBox.information(self, "下载成功", f"备份已保存到：\n{save_path}")
-        except Exception as e:
-            QMessageBox.critical(self, "下载失败", f"无法下载备份：{str(e)}")
 
-    def _delete(self, backup_file: dict):
-        """删除指定备份"""
-        reply = QMessageBox.question(
-            self, "确认删除",
-            f"确定要删除备份 {backup_file['name']} 吗？\n此操作不可撤销。",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        if reply == QMessageBox.Yes:
-            storage_type = self.config.get("storage.type", "github")
-            try:
-                if storage_type == "ssh":
-                    # SSH 需要 context manager，重新创建连接
-                    password = self.config.get("ssh.password", "")
-                    password_encrypted = self.config.get("ssh.password_encrypted", "")
-                    if password_encrypted:
-                        crypto = Crypto()
-                        password = crypto.decrypt(password_encrypted)
+            self.delete_worker = DeleteWorker(storage, backup_file["path"], backup_file["name"], is_ssh)
+            self.delete_worker.finished.connect(self._on_delete_finished)
+            self.delete_worker.error.connect(self._on_delete_error)
+            self.delete_worker.finished.connect(self.delete_worker.deleteLater)
+            self.delete_worker.start()
 
-                    storage = SSHStorage(
-                        host=self.config.get("ssh.host", ""),
-                        port=self.config.get("ssh.port", 22),
-                        user=self.config.get("ssh.user", ""),
-                        password=password
-                    )
-                    with storage:
-                        storage.delete(backup_file["path"])
-                else:
-                    self.storage.delete(backup_file["path"])
-                QMessageBox.information(self, "删除成功", f"已删除备份：{backup_file['name']}")
-                self._load_backups()
-            except Exception as e:
-                QMessageBox.critical(self, "删除失败", f"无法删除备份：{str(e)}")
+    def _on_delete_finished(self, backup_name: str):
+        QMessageBox.information(self, "删除成功", f"已删除备份：{backup_name}")
+        self._load_backups()
+
+    def _on_delete_error(self, error_msg: str):
+        QMessageBox.critical(self, "删除失败", f"无法删除备份：{error_msg}")
 
     def _go_to_login(self):
         """跳转到登录"""

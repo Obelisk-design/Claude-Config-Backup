@@ -417,6 +417,7 @@ class BackupTab(QWidget):
         )
         self.worker.finished.connect(lambda bid, bfile: self._on_backup_finished(bid, bfile, storage_type))
         self.worker.error.connect(self._on_backup_error)
+        self.worker.finished.connect(self.worker.deleteLater) # 避免线程对象内存泄漏
         self.worker.start()
 
     def _on_backup_finished(self, backup_id, backup_file_path, storage_type):

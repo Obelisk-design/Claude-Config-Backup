@@ -124,10 +124,10 @@ class GitHubOAuth:
         # 确保 code 是纯字符串，如果传入了 tuple (比如之前解包失败的情况残留) 则取第一个元素
         if isinstance(code, tuple) or isinstance(code, list):
             code = code[0]
-            
+
         # 强制转换为字符串并清理
         code = str(code).strip()
-            
+
         data = {
             "client_id": self.client_id.strip() if self.client_id else "",
             "client_secret": self.client_secret.strip() if self.client_secret else "",
@@ -150,12 +150,12 @@ class GitHubOAuth:
                 raise AuthenticationError(f"OAuth error: {result.get('error_description', result['error'])}")
 
             logger.info("Successfully exchanged code for access token")
-            
+
             # 如果 access_token 不在顶层，检查是否有可能 GitHub 返回格式变化
             if "access_token" not in result:
                 logger.error(f"Unexpected token response format: {result}")
                 raise AuthenticationError("Failed to get access token from response")
-                
+
             return result.get("access_token", "")
 
         except requests.RequestException as e:
@@ -207,8 +207,13 @@ class GitHubOAuth:
         Raises:
             AuthenticationError: 认证失败或超时
         """
-        server_address = ("", self.redirect_port)
-        httpd = HTTPServer(server_address, OAuthCallbackHandler)
+        try:
+            # 尝试先启动服务器并捕获可能的端口占用异常
+            server_address = ("", self.redirect_port)
+            httpd = HTTPServer(server_address, OAuthCallbackHandler)
+        except OSError as e:
+            logger.error(f"Failed to start callback server on port {self.redirect_port}: {e}")
+            raise AuthenticationError(f"回调端口 {self.redirect_port} 被占用或无法绑定。请检查设置。")
 
         OAuthCallbackHandler.callback_received = threading.Event()
         OAuthCallbackHandler.auth_code = None
@@ -224,11 +229,12 @@ class GitHubOAuth:
         logger.info(f"Opening browser for OAuth authorization...")
         webbrowser.open(auth_url)
 
-        if not OAuthCallbackHandler.callback_received.wait(timeout=timeout):
+        try:
+            if not OAuthCallbackHandler.callback_received.wait(timeout=timeout):
+                raise AuthenticationError("OAuth callback timed out")
+        finally:
+            # 无论是否超时或发生异常，都必须确保关闭服务器，释放端口
             httpd.server_close()
-            raise AuthenticationError("OAuth callback timed out")
-
-        httpd.server_close()
 
         if OAuthCallbackHandler.error:
             raise AuthenticationError(f"OAuth error: {OAuthCallbackHandler.error}")

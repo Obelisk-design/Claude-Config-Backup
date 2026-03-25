@@ -22,6 +22,7 @@ CACHE_DIR = Path.home() / ".claude-backup" / "cache"
 class BackupManager:
     """备份管理器"""
 
+
     def __init__(self):
         self.module_loader = ModuleLoader()
         self.sensitive_filter = SensitiveFilter()
