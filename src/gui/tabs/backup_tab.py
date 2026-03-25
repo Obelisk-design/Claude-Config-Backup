@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (
     QLineEdit, QLabel, QMessageBox, QGroupBox, QCheckBox,
     QScrollArea, QFrame
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
 
 from gui.dialogs.preview_dialog import PreviewDialog
 from core.backup_manager import BackupManager
@@ -21,6 +21,61 @@ from gui.styles import (
 )
 
 
+class BackupWorker(QThread):
+    """备份工作线程"""
+    finished = pyqtSignal(str, str)  # backup_id, backup_file_path (string)
+    error = pyqtSignal(str)
+    progress = pyqtSignal(str)
+
+    def __init__(self, backup_manager, module_ids, description, username):
+        super().__init__()
+        self.backup_manager = backup_manager
+        self.module_ids = module_ids
+        self.description = description
+        self.username = username
+
+    def run(self):
+        try:
+            self.progress.emit("正在收集文件...")
+            backup_id, backup_file = self.backup_manager.create_backup(
+                module_ids=self.module_ids,
+                description=self.description,
+                username=self.username
+            )
+            # 转换为字符串传递，避免序列化问题
+            self.finished.emit(backup_id, str(backup_file))
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class UploadWorker(QThread):
+    """上传工作线程"""
+    finished = pyqtSignal(bool, str)  # success, message
+    error = pyqtSignal(str)
+    progress = pyqtSignal(str)
+
+    def __init__(self, token, backup_file_path, remote_name):
+        super().__init__()
+        self.token = token
+        self.backup_file_path = backup_file_path
+        self.remote_name = remote_name
+
+    def run(self):
+        try:
+            from pathlib import Path
+            self.progress.emit("正在上传到 GitHub...")
+            backup_file = Path(self.backup_file_path) if isinstance(self.backup_file_path, str) else self.backup_file_path
+            storage = GitHubStorage(self.token)
+            success = storage.upload(backup_file, self.remote_name)
+            if success:
+                size_kb = backup_file.stat().st_size / 1024
+                self.finished.emit(True, f"文件：{self.remote_name}\n大小：{size_kb:.1f} KB\n已上传到 GitHub")
+            else:
+                self.error.emit("上传失败")
+        except Exception as e:
+            self.error.emit(str(e))
+
+
 class BackupTab(QWidget):
     """备份 Tab 页面"""
 
@@ -31,6 +86,7 @@ class BackupTab(QWidget):
         self.module_loader = ModuleLoader()
         self.config = get_config()
         self.checkboxes = {}
+        self.worker = None
         self._init_ui()
 
     def _init_ui(self):
@@ -278,42 +334,62 @@ class BackupTab(QWidget):
         user_info = self.token_manager.load_user_info()
         username = user_info.get("login", "unknown") if user_info else "unknown"
 
-        try:
-            self.backup_btn.setEnabled(False)
-            self.backup_btn.setText("⏳ 备份中...")
+        # 禁用按钮
+        self.backup_btn.setEnabled(False)
+        self.backup_btn.setText("⏳ 备份中...")
 
-            backup_id, backup_file = self.backup_manager.create_backup(
-                module_ids=modules,
-                description=self.description_input.text(),
-                username=username
+        # 创建备份工作线程
+        self.worker = BackupWorker(
+            self.backup_manager,
+            modules,
+            self.description_input.text(),
+            username
+        )
+        self.worker.finished.connect(lambda bid, bfile: self._on_backup_finished(bid, bfile, storage_type))
+        self.worker.error.connect(self._on_backup_error)
+        self.worker.start()
+
+    def _on_backup_finished(self, backup_id, backup_file_path, storage_type):
+        """备份完成"""
+        from pathlib import Path
+        backup_file = Path(backup_file_path)
+
+        if storage_type == "github":
+            token = self.token_manager.load_token()
+            remote_name = backup_file.name
+
+            # 创建上传工作线程
+            self.worker = UploadWorker(token, backup_file_path, remote_name)
+            self.worker.finished.connect(lambda success, msg: self._on_upload_finished(success, msg, backup_file))
+            self.worker.error.connect(self._on_backup_error)
+            self.worker.start()
+        elif storage_type == "ssh":
+            self._reset_backup_button()
+            QMessageBox.information(self, "提示", "SSH 存储功能开发中...")
+        else:
+            # 本地存储
+            size_kb = backup_file.stat().st_size / 1024
+            self._reset_backup_button()
+            QMessageBox.information(
+                self, "备份成功",
+                f"文件：{backup_file.name}\n大小：{size_kb:.1f} KB\n已保存到本地"
             )
 
-            if storage_type == "github":
-                token = self.token_manager.load_token()
-                storage = GitHubStorage(token)
-                remote_name = backup_file.name
-                if storage.upload(backup_file, remote_name):
-                    size_kb = backup_file.stat().st_size / 1024
-                    QMessageBox.information(
-                        self, "备份成功",
-                        f"文件：{remote_name}\n大小：{size_kb:.1f} KB\n已上传到 GitHub"
-                    )
-                else:
-                    raise Exception("上传失败")
-            elif storage_type == "ssh":
-                QMessageBox.information(self, "提示", "SSH 存储功能开发中...")
-            else:
-                # 本地存储
-                size_kb = backup_file.stat().st_size / 1024
-                QMessageBox.information(
-                    self, "备份成功",
-                    f"文件：{backup_file.name}\n大小：{size_kb:.1f} KB\n已保存到本地"
-                )
+    def _on_upload_finished(self, success, message, backup_file):
+        """上传完成"""
+        self._reset_backup_button()
+        if success:
+            QMessageBox.information(self, "备份成功", message)
+        else:
+            QMessageBox.critical(self, "备份失败", message)
 
-        except Exception as e:
-            logger.error(f"备份失败: {e}")
-            QMessageBox.critical(self, "备份失败", str(e))
+    def _on_backup_error(self, error_msg):
+        """备份/上传错误"""
+        self._reset_backup_button()
+        logger.error(f"备份失败: {error_msg}")
+        QMessageBox.critical(self, "备份失败", error_msg)
 
-        finally:
-            self.backup_btn.setEnabled(True)
-            self.backup_btn.setText("🚀 开始备份")
+    def _reset_backup_button(self):
+        """重置备份按钮状态"""
+        self.backup_btn.setEnabled(True)
+        self.backup_btn.setText("🚀 开始备份")
