@@ -7,12 +7,35 @@ from PyQt5.QtWidgets import (
     QMessageBox, QRadioButton, QLabel, QScrollArea, QFrame,
     QFileDialog
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QThread
 import webbrowser
 
 from utils.config import get_config
 from utils.logger import logger
 from gui.styles import PRIMARY, TEXT_PRIMARY, TEXT_MUTED
+from security.crypto import Crypto
+
+
+class SSHTestWorker(QThread):
+    """SSH 连接测试工作线程"""
+    finished = pyqtSignal(bool, str)
+
+    def __init__(self, host, port, user, password):
+        super().__init__()
+        self.host = host
+        self.port = port
+        self.user = user
+        self.password = password
+
+    def run(self):
+        try:
+            from storage.ssh_storage import SSHStorage
+            storage = SSHStorage(self.host, self.port, self.user, self.password)
+            with storage:
+                pass
+            self.finished.emit(True, f"连接成功：{self.host}:{self.port}")
+        except Exception as e:
+            self.finished.emit(False, f"连接失败：{str(e)}")
 
 
 class SettingsTab(QWidget):
@@ -278,6 +301,17 @@ class SettingsTab(QWidget):
         self.config.set("ssh.port", self.ssh_port.value())
         self.config.set("ssh.user", self.ssh_user.text())
 
+        # 加密保存 SSH 密码
+        password = self.ssh_password.text()
+        if password:
+            crypto = Crypto()
+            encrypted_password = crypto.encrypt(password)
+            self.config.set("ssh.password_encrypted", encrypted_password)
+            self.config.set("ssh.password", "")  # 清空明文密码
+        else:
+            # 如果密码为空，保留原有配置
+            pass
+
         # 保存本地存储路径
         self.config.set("local.path", self.local_path_input.text())
 
@@ -308,12 +342,42 @@ class SettingsTab(QWidget):
         """测试 SSH 连接"""
         host = self.ssh_host.text()
         user = self.ssh_user.text()
+        password = self.ssh_password.text()
 
         if not host or not user:
             QMessageBox.warning(self, "提示", "请填写服务器地址和用户名")
             return
 
-        QMessageBox.information(self, "提示", "连接测试功能开发中...")
+        if not password:
+            QMessageBox.warning(self, "提示", "请填写密码")
+            return
+
+        # 禁用测试按钮
+        sender = self.sender()
+        sender.setEnabled(False)
+        sender.setText("测试中...")
+
+        # 创建测试工作线程
+        self.test_worker = SSHTestWorker(
+            host,
+            self.ssh_port.value(),
+            user,
+            password
+        )
+        self.test_worker.finished.connect(
+            lambda success, msg: self._on_ssh_test_finished(success, msg, sender)
+        )
+        self.test_worker.start()
+
+    def _on_ssh_test_finished(self, success, message, button):
+        """SSH 测试完成"""
+        button.setEnabled(True)
+        button.setText("🔗 测试连接")
+
+        if success:
+            QMessageBox.information(self, "连接成功", message)
+        else:
+            QMessageBox.critical(self, "连接失败", message)
 
     def _browse_local_path(self):
         """浏览本地存储路径"""
