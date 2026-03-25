@@ -334,7 +334,11 @@ class BackupManager:
                 output_path = CACHE_DIR / f"{backup_id}.ccb"
             else:
                 output_path = Path(output_path)
-                output_path.parent.mkdir(parents=True, exist_ok=True)
+                # 如果是目录，则在目录下创建文件
+                if output_path.is_dir():
+                    output_path = output_path / f"{backup_id}.ccb"
+                else:
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
 
             # 创建ZIP文件
             with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zf:

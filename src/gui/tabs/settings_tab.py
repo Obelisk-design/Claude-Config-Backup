@@ -4,7 +4,8 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLineEdit, QSpinBox, QPushButton, QGroupBox,
-    QMessageBox, QRadioButton, QLabel, QScrollArea, QFrame
+    QMessageBox, QRadioButton, QLabel, QScrollArea, QFrame,
+    QFileDialog
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 import webbrowser
@@ -166,9 +167,33 @@ class SettingsTab(QWidget):
         local_hint.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 13px;")
         local_layout.addWidget(local_hint)
 
-        self.local_path_label = QLabel("备份保存位置：用户文档目录/ClaudeBackups/")
-        self.local_path_label.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 13px;")
-        local_layout.addWidget(self.local_path_label)
+        # 存储路径选择
+        path_layout = QHBoxLayout()
+        path_label = QLabel("存储路径：")
+        path_label.setFixedWidth(70)
+        path_label.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 13px;")
+
+        self.local_path_input = QLineEdit()
+        self.local_path_input.setPlaceholderText("选择备份保存目录")
+        self.local_path_input.setMinimumHeight(36)
+        self.local_path_input.setReadOnly(True)
+
+        browse_btn = QPushButton("浏览...")
+        browse_btn.setMinimumHeight(36)
+        browse_btn.clicked.connect(self._browse_local_path)
+
+        path_layout.addWidget(path_label)
+        path_layout.addWidget(self.local_path_input, 1)
+        path_layout.addWidget(browse_btn)
+
+        local_layout.addLayout(path_layout)
+
+        # 默认路径提示
+        from pathlib import Path
+        default_path = Path.home() / "Documents" / "ClaudeBackups"
+        self.default_path_hint = QLabel(f"默认路径：{default_path}")
+        self.default_path_hint.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 12px;")
+        local_layout.addWidget(self.default_path_hint)
 
         self.local_group.setVisible(False)
         layout.addWidget(self.local_group)
@@ -224,6 +249,15 @@ class SettingsTab(QWidget):
         self.ssh_port.setValue(self.config.get("ssh.port", 22))
         self.ssh_user.setText(self.config.get("ssh.user", ""))
 
+        # 加载本地存储路径
+        from pathlib import Path
+        default_path = Path.home() / "Documents" / "ClaudeBackups"
+        local_path = self.config.get("local.path", "")
+        if local_path:
+            self.local_path_input.setText(local_path)
+        else:
+            self.local_path_input.setPlaceholderText(f"默认：{default_path}")
+
         # 加载存储类型
         storage_type = self.config.get("storage.type", "github")
         if storage_type == "github":
@@ -243,6 +277,9 @@ class SettingsTab(QWidget):
         self.config.set("ssh.host", self.ssh_host.text())
         self.config.set("ssh.port", self.ssh_port.value())
         self.config.set("ssh.user", self.ssh_user.text())
+
+        # 保存本地存储路径
+        self.config.set("local.path", self.local_path_input.text())
 
         # 保存存储类型
         if self.github_radio.isChecked():
@@ -277,6 +314,23 @@ class SettingsTab(QWidget):
             return
 
         QMessageBox.information(self, "提示", "连接测试功能开发中...")
+
+    def _browse_local_path(self):
+        """浏览本地存储路径"""
+        from pathlib import Path
+        current_path = self.local_path_input.text()
+        if not current_path:
+            current_path = str(Path.home() / "Documents" / "ClaudeBackups")
+
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "选择备份存储目录",
+            current_path,
+            QFileDialog.ShowDirsOnly
+        )
+
+        if folder:
+            self.local_path_input.setText(folder)
 
     def _open_github_oauth_help(self):
         """打开 GitHub OAuth 创建帮助"""

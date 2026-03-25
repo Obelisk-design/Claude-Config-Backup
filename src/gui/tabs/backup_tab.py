@@ -27,12 +27,13 @@ class BackupWorker(QThread):
     error = pyqtSignal(str)
     progress = pyqtSignal(str)
 
-    def __init__(self, backup_manager, module_ids, description, username):
+    def __init__(self, backup_manager, module_ids, description, username, output_path=None):
         super().__init__()
         self.backup_manager = backup_manager
         self.module_ids = module_ids
         self.description = description
         self.username = username
+        self.output_path = output_path
 
     def run(self):
         try:
@@ -40,7 +41,8 @@ class BackupWorker(QThread):
             backup_id, backup_file = self.backup_manager.create_backup(
                 module_ids=self.module_ids,
                 description=self.description,
-                username=self.username
+                username=self.username,
+                output_path=self.output_path
             )
             # 转换为字符串传递，避免序列化问题
             self.finished.emit(backup_id, str(backup_file))
@@ -278,14 +280,25 @@ class BackupTab(QWidget):
 
     def _update_storage_display(self):
         """更新存储位置显示"""
+        from pathlib import Path
+
         storage_type = self.config.get("storage.type", "github")
 
-        storage_names = {
-            "github": "☁️ GitHub 私有仓库",
-            "ssh": "🖥️ SSH 服务器",
-            "local": "📁 本地存储"
-        }
-        self.storage_value.setText(storage_names.get(storage_type, "GitHub 私有仓库"))
+        if storage_type == "github":
+            self.storage_value.setText("☁️ GitHub 私有仓库")
+        elif storage_type == "ssh":
+            host = self.config.get("ssh.host", "")
+            if host:
+                self.storage_value.setText(f"🖥️ SSH: {host}")
+            else:
+                self.storage_value.setText("🖥️ SSH 服务器")
+        else:
+            local_path = self.config.get("local.path", "")
+            if local_path:
+                self.storage_value.setText(f"📁 {local_path}")
+            else:
+                default_path = Path.home() / "Documents" / "ClaudeBackups"
+                self.storage_value.setText(f"📁 {default_path}")
 
     def showEvent(self, event):
         """页面显示时更新存储位置"""
@@ -317,6 +330,8 @@ class BackupTab(QWidget):
 
     def _on_backup(self):
         """执行备份"""
+        from pathlib import Path
+
         storage_type = self.config.get("storage.type", "github")
 
         # GitHub 存储需要登录
@@ -334,6 +349,16 @@ class BackupTab(QWidget):
         user_info = self.token_manager.load_user_info()
         username = user_info.get("login", "unknown") if user_info else "unknown"
 
+        # 确定输出路径
+        output_path = None
+        if storage_type == "local":
+            local_path = self.config.get("local.path", "")
+            if local_path:
+                output_path = Path(local_path)
+            else:
+                output_path = Path.home() / "Documents" / "ClaudeBackups"
+            output_path.mkdir(parents=True, exist_ok=True)
+
         # 禁用按钮
         self.backup_btn.setEnabled(False)
         self.backup_btn.setText("⏳ 备份中...")
@@ -343,7 +368,8 @@ class BackupTab(QWidget):
             self.backup_manager,
             modules,
             self.description_input.text(),
-            username
+            username,
+            output_path
         )
         self.worker.finished.connect(lambda bid, bfile: self._on_backup_finished(bid, bfile, storage_type))
         self.worker.error.connect(self._on_backup_error)
