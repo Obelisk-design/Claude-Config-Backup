@@ -94,6 +94,19 @@ class BackupManager:
             logger.error(f"计算文件哈希失败 {file_path}: {e}")
             return ""
 
+    def _is_text_file(self, file_path: Path) -> bool:
+        """检查是否为文本文件"""
+        # 二进制文件扩展名列表
+        binary_extensions = {
+            '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg',
+            '.pdf', '.zip', '.tar', '.gz', '.rar',
+            '.exe', '.dll', '.so', '.dylib',
+            '.pyc', '.pyd', '.class',
+            '.mp3', '.mp4', '.wav', '.avi', '.mkv',
+            '.db', '.sqlite', '.sqlite3',
+        }
+        return file_path.suffix.lower() not in binary_extensions
+
     def _filter_sensitive_content(self, file_path: Path) -> Optional[Any]:
         """过滤文件中的敏感信息
 
@@ -103,6 +116,10 @@ class BackupManager:
         Returns:
             过滤后的内容，如果不是JSON文件则返回None
         """
+        # 跳过二进制文件
+        if not self._is_text_file(file_path):
+            return None
+
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
@@ -116,8 +133,8 @@ class BackupManager:
                 pass
 
             return None
-        except Exception as e:
-            logger.warning(f"读取文件失败 {file_path}: {e}")
+        except (UnicodeDecodeError, IOError):
+            # 不是文本文件或无法读取，返回 None
             return None
 
     def _create_manifest(
