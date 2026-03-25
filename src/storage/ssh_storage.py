@@ -169,7 +169,57 @@ class SSHStorage(StorageBase):
             raise RestoreError(f"Download failed: {e}")
 
     def list_files(self, prefix: str = "") -> List[Dict[str, Any]]:
-        raise NotImplementedError("list_files method not implemented")
+        """列出 SSH 服务器上的备份文件
+
+        Args:
+            prefix: 路径前缀（暂不使用）
+
+        Returns:
+            List[Dict]: 文件信息列表，每项包含:
+                - name: 文件名
+                - path: 相对路径
+                - size: 文件大小（字节）
+                - created_at: ISO 格式时间（从文件名解析）
+                - download_url: None（SSH 无 HTTP URL）
+        """
+        from datetime import datetime
+
+        try:
+            files = self._sftp.listdir_attr(self.BACKUP_DIR)
+            result = []
+            for f in files:
+                # 跳过目录
+                if f.st_mode and (f.st_mode & 0o170000) == 0o040000:
+                    continue
+
+                file_info = {
+                    "name": f.filename,
+                    "path": f.filename,  # 相对路径就是文件名
+                    "size": f.st_size or 0,
+                    "created_at": None,
+                    "download_url": None
+                }
+
+                # 尝试从修改时间解析 created_at
+                if f.st_mtime:
+                    try:
+                        dt = datetime.fromtimestamp(f.st_mtime)
+                        file_info["created_at"] = dt.isoformat()
+                    except (ValueError, OSError):
+                        pass
+
+                result.append(file_info)
+
+            # 按创建时间降序排序
+            result.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+            return result
+
+        except FileNotFoundError:
+            logger.debug(f"Backup directory not found: {self.BACKUP_DIR}")
+            return []
+        except Exception as e:
+            logger.error(f"Failed to list files: {e}")
+            return []
 
     def delete(self, remote_path: str) -> bool:
         raise NotImplementedError("delete method not implemented")

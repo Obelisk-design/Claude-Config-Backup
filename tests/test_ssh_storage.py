@@ -193,3 +193,68 @@ class TestSSHStorageDownload:
         with pytest.raises(RestoreError):
             with SSHStorage("host", 22, "user", "pass") as storage:
                 storage.download("nonexistent.ccb", str(dest_file))
+
+
+class TestSSHStorageListFiles:
+    """测试文件列表功能"""
+
+    @patch('storage.ssh_storage.SSHClient')
+    def test_list_files_success(self, mock_ssh_client):
+        """测试获取文件列表"""
+        from storage.ssh_storage import SSHStorage
+
+        mock_client = MagicMock()
+        mock_sftp = MagicMock()
+        mock_client.open_sftp.return_value = mock_sftp
+        mock_ssh_client.return_value = mock_client
+
+        # 模拟文件列表
+        file1 = MagicMock()
+        file1.filename = "backup1.ccb"
+        file1.st_size = 1024
+        file1.st_mtime = 1711281000
+
+        file2 = MagicMock()
+        file2.filename = "backup2.ccb"
+        file2.st_size = 2048
+        file2.st_mtime = 1711282000
+
+        mock_sftp.listdir_attr.return_value = [file1, file2]
+
+        with SSHStorage("host", 22, "user", "pass") as storage:
+            files = storage.list_files()
+            assert len(files) == 2
+            # 按时间降序排序，backup2.ccb 时间更新
+            assert files[0]["name"] == "backup2.ccb"
+            assert files[0]["size"] == 2048
+            assert files[1]["name"] == "backup1.ccb"
+
+    @patch('storage.ssh_storage.SSHClient')
+    def test_list_files_empty(self, mock_ssh_client):
+        """测试空目录"""
+        from storage.ssh_storage import SSHStorage
+
+        mock_client = MagicMock()
+        mock_sftp = MagicMock()
+        mock_client.open_sftp.return_value = mock_sftp
+        mock_ssh_client.return_value = mock_client
+        mock_sftp.listdir_attr.return_value = []
+
+        with SSHStorage("host", 22, "user", "pass") as storage:
+            files = storage.list_files()
+            assert files == []
+
+    @patch('storage.ssh_storage.SSHClient')
+    def test_list_files_dir_not_found(self, mock_ssh_client):
+        """测试目录不存在"""
+        from storage.ssh_storage import SSHStorage
+
+        mock_client = MagicMock()
+        mock_sftp = MagicMock()
+        mock_client.open_sftp.return_value = mock_sftp
+        mock_ssh_client.return_value = mock_client
+        mock_sftp.listdir_attr.side_effect = FileNotFoundError()
+
+        with SSHStorage("host", 22, "user", "pass") as storage:
+            files = storage.list_files()
+            assert files == []
