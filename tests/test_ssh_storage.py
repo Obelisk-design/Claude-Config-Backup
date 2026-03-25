@@ -72,3 +72,44 @@ class TestSSHStorageContext:
         with pytest.raises(AuthenticationError):
             with SSHStorage("host", 22, "user", "wrong_pass"):
                 pass
+
+
+class TestSSHStorageHelpers:
+    """测试辅助方法"""
+
+    def test_get_remote_path(self):
+        """测试远程路径拼接"""
+        from storage.ssh_storage import SSHStorage
+
+        storage = SSHStorage("host", 22, "user", "pass")
+        result = storage._get_remote_path("backup.ccb")
+        assert result == ".claude-backups/backup.ccb"
+
+    @patch('storage.ssh_storage.SSHClient')
+    def test_ensure_backup_dir_exists(self, mock_ssh_client):
+        """测试备份目录已存在"""
+        from storage.ssh_storage import SSHStorage
+
+        mock_client = MagicMock()
+        mock_sftp = MagicMock()
+        mock_client.open_sftp.return_value = mock_sftp
+        mock_ssh_client.return_value = mock_client
+
+        with SSHStorage("host", 22, "user", "pass") as storage:
+            storage._ensure_backup_dir()
+            mock_sftp.mkdir.assert_not_called()
+
+    @patch('storage.ssh_storage.SSHClient')
+    def test_ensure_backup_dir_create(self, mock_ssh_client):
+        """测试创建备份目录"""
+        from storage.ssh_storage import SSHStorage
+
+        mock_client = MagicMock()
+        mock_sftp = MagicMock()
+        mock_client.open_sftp.return_value = mock_sftp
+        mock_ssh_client.return_value = mock_client
+        mock_sftp.stat.side_effect = FileNotFoundError()
+
+        with SSHStorage("host", 22, "user", "pass") as storage:
+            storage._ensure_backup_dir()
+            mock_sftp.mkdir.assert_called_once_with(".claude-backups")

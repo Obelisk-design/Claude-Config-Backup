@@ -95,6 +95,31 @@ class SSHStorage(StorageBase):
             self._client = None
         logger.debug("SSH connection closed")
 
+    # 辅助方法
+    def _get_remote_path(self, path: str) -> str:
+        """获取完整远程路径
+
+        Args:
+            path: 相对路径
+
+        Returns:
+            完整的远程路径
+        """
+        return f"{self.BACKUP_DIR}/{path}"
+
+    def _ensure_backup_dir(self):
+        """确保服务器备份目录存在"""
+        try:
+            self._sftp.stat(self.BACKUP_DIR)
+        except FileNotFoundError:
+            try:
+                self._sftp.mkdir(self.BACKUP_DIR)
+                logger.info(f"Created backup directory: {self.BACKUP_DIR}")
+            except Exception as e:
+                logger.warning(f"Failed to create backup directory: {e}")
+        except Exception as e:
+            logger.debug(f"Error checking backup directory: {e}")
+
     # StorageBase 抽象方法实现（后续任务中完善）
     def upload(self, local_path: str, remote_path: str) -> bool:
         raise NotImplementedError("upload method not implemented")
