@@ -45,14 +45,18 @@ src/storage/
 # src/storage/ssh_storage.py
 
 from paramiko import SSHClient, AutoAddPolicy
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from storage.base import StorageBase
-from core.exceptions import BackupError, RestoreError, NetworkError
+from core.exceptions import BackupError, RestoreError, NetworkError, AuthenticationError
 
 class SSHStorage(StorageBase):
     """SSH/SFTP 存储实现"""
 
+    # 连接配置
     BACKUP_DIR = ".claude-backups"  # 服务器上的固定目录
+    MAX_RETRIES = 3
+    RETRY_DELAY = 2  # seconds
+    TIMEOUT = 30  # seconds
 
     def __init__(self, host: str, port: int, user: str, password: str):
         self.host = host
@@ -61,6 +65,14 @@ class SSHStorage(StorageBase):
         self.password = password
         self._client: Optional[SSHClient] = None
         self._sftp = None
+
+    # 支持上下文管理器
+    def __enter__(self):
+        self._connect()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._disconnect()
 ```
 
 ### 方法实现
@@ -71,34 +83,111 @@ class SSHStorage(StorageBase):
 |------|------|--------|
 | `upload(local_path, remote_path)` | 上传备份文件 | `bool` |
 | `download(remote_path, local_path)` | 下载备份文件 | `bool` |
-| `list_files(prefix="")` | 列出备份文件 | `List[Dict]` |
+| `list_files(prefix="")` | 列出备份文件 | `List[Dict[str, Any]]` |
 | `delete(remote_path)` | 删除备份文件 | `bool` |
 | `get_file_url(remote_path)` | 获取文件URL（SSH无URL） | `None` |
+
+**`list_files()` 返回格式规范**：
+
+```python
+def list_files(self, prefix: str = "") -> List[Dict[str, Any]]:
+    """
+    Returns:
+        List of dicts with keys:
+        - "name": str - 文件名
+        - "path": str - 相对路径
+        - "size": int - 文件大小（字节）
+        - "created_at": Optional[str] - ISO 格式时间（从文件名解析）
+        - "download_url": None - SSH 无 HTTP URL
+    """
+```
 
 #### 辅助方法
 
 | 方法 | 说明 |
 |------|------|
 | `test_connection()` | 测试 SSH 连接，返回 `(success, message)` |
-| `_connect()` | 建立 SSH/SFTP 连接 |
+| `_connect()` | 建立 SSH/SFTP 连接（支持重试） |
 | `_disconnect()` | 关闭连接 |
 | `_ensure_backup_dir()` | 确保服务器备份目录存在 |
 | `_get_remote_path(path)` | 获取完整远程路径 |
+
+**辅助方法实现**：
+
+```python
+def _get_remote_path(self, path: str) -> str:
+    """获取完整远程路径"""
+    return f"{self.BACKUP_DIR}/{path}"
+
+def _connect(self):
+    """建立 SSH/SFTP 连接（带重试）"""
+    import time
+    last_error = None
+
+    for attempt in range(self.MAX_RETRIES):
+        try:
+            self._client = SSHClient()
+            # 安全策略：优先加载系统 known_hosts
+            self._client.load_system_host_keys()
+            # 警告：AutoAddPolicy 会自动接受新主机密钥，存在 MITM 风险
+            # 用户应确保首次连接到可信服务器
+            self._client.set_missing_host_key_policy(AutoAddPolicy())
+
+            self._client.connect(
+                hostname=self.host,
+                port=self.port,
+                username=self.user,
+                password=self.password,
+                timeout=self.TIMEOUT
+            )
+            self._sftp = self._client.open_sftp()
+            return
+        except Exception as e:
+            last_error = e
+            if attempt < self.MAX_RETRIES - 1:
+                time.sleep(self.RETRY_DELAY * (attempt + 1))
+
+    # 认证失败特殊处理
+    if "Authentication" in str(last_error):
+        raise AuthenticationError(f"SSH authentication failed: {last_error}")
+    raise NetworkError(f"SSH connection failed after {self.MAX_RETRIES} retries: {last_error}")
+
+def _disconnect(self):
+    """关闭连接"""
+    if self._sftp:
+        self._sftp.close()
+        self._sftp = None
+    if self._client:
+        self._client.close()
+        self._client = None
+```
 
 ### 错误处理
 
 ```python
 # 复用现有异常体系
-try:
-    self._connect()
-except Exception as e:
-    raise NetworkError(f"SSH connection failed: {e}")
+from core.exceptions import BackupError, RestoreError, NetworkError, AuthenticationError
 
-try:
-    self._sftp.put(local_path, remote_path)
-except Exception as e:
-    raise BackupError(f"Upload failed: {e}")
+# 认证失败
+if "Authentication" in str(e):
+    raise AuthenticationError(f"SSH authentication failed: {e}")
+
+# 网络错误
+raise NetworkError(f"SSH connection failed: {e}")
+
+# 备份/恢复操作失败
+raise BackupError(f"Upload failed: {e}")
+raise RestoreError(f"Download failed: {e}")
 ```
+
+**异常映射**：
+
+| SSH 错误类型 | 抛出异常 |
+|-------------|---------|
+| Authentication failed | `AuthenticationError` |
+| Connection timeout | `NetworkError` |
+| Host unreachable | `NetworkError` |
+| SFTP operation failed | `BackupError` / `RestoreError` |
 
 ---
 
@@ -164,7 +253,26 @@ if storage_type == "ssh":
 现有 SSH 配置 UI 已就绪，需要实现：
 
 1. **连接测试**：`_test_ssh_connection()` 调用 `SSHStorage.test_connection()`
-2. **密码加密存储**：使用 `security/crypto.py` 加密保存密码
+2. **密码加密存储**：
+
+```python
+# settings_tab.py 保存设置时
+from security.crypto import encrypt_password, decrypt_password
+
+def _save_settings(self):
+    # 加密密码后存储
+    encrypted_password = encrypt_password(self.ssh_password.text())
+    self.config.set("ssh.password_encrypted", encrypted_password)
+    # 不再存储明文密码
+    # self.config.set("ssh.password", "")  # 清空明文
+
+# 使用时解密
+def _get_ssh_password(self):
+    encrypted = self.config.get("ssh.password_encrypted", "")
+    if encrypted:
+        return decrypt_password(encrypted)
+    return ""
+```
 
 ### 备份页面
 
@@ -187,6 +295,28 @@ elif storage_type == "ssh":
 ### 恢复/历史页面
 
 根据 `storage_type` 判断使用 `GitHubStorage` 还是 `SSHStorage`。
+
+**`test_connection()` 方法说明**：
+
+此方法不属于 `StorageBase` 接口，是 SSH 存储特有的功能，仅在设置页面调用。
+
+```python
+def test_connection(self) -> Tuple[bool, str]:
+    """测试 SSH 连接
+
+    Returns:
+        (success, message): 成功返回 (True, "连接成功")，失败返回 (False, 错误信息)
+    """
+    try:
+        with self:  # 使用上下文管理器
+            return True, f"连接成功：{self.host}:{self.port}"
+    except AuthenticationError as e:
+        return False, f"认证失败：请检查用户名和密码"
+    except NetworkError as e:
+        return False, f"连接失败：{e}"
+    except Exception as e:
+        return False, f"未知错误：{e}"
+```
 
 ---
 
@@ -214,6 +344,71 @@ cloud:
 1. **StorageBase 接口**：已定义标准接口，新增存储类型只需实现该接口
 2. **工厂模式**：未来可创建 `StorageFactory` 根据 type 返回对应实例
 3. **设置页面**：预留云存储配置 UI（隐藏状态）
+
+### 云存储占位结构
+
+```python
+# src/storage/cloud_storage.py
+"""云存储预留实现（付费功能）"""
+
+from typing import Dict, List, Optional, Any
+from storage.base import StorageBase
+from core.exceptions import BackupError
+
+
+class CloudStorage(StorageBase):
+    """云存储实现（付费功能预留）
+
+    支持的云服务商：
+    - 阿里云 OSS
+    - 腾讯云 COS
+    - AWS S3
+    - 自定义服务端
+    """
+
+    PREMIUM_REQUIRED = "云存储功能需要订阅付费套餐"
+
+    def __init__(self, provider: str, endpoint: str, bucket: str,
+                 access_key: str, secret_key: str):
+        self.provider = provider
+        self.endpoint = endpoint
+        self.bucket = bucket
+        self.access_key = access_key
+        self.secret_key = secret_key
+
+    def upload(self, local_path: str, remote_path: str) -> bool:
+        raise NotImplementedError(self.PREMIUM_REQUIRED)
+
+    def download(self, remote_path: str, local_path: str) -> bool:
+        raise NotImplementedError(self.PREMIUM_REQUIRED)
+
+    def list_files(self, prefix: str = "") -> List[Dict[str, Any]]:
+        raise NotImplementedError(self.PREMIUM_REQUIRED)
+
+    def delete(self, remote_path: str) -> bool:
+        raise NotImplementedError(self.PREMIUM_REQUIRED)
+
+    def get_file_url(self, remote_path: str) -> Optional[str]:
+        raise NotImplementedError(self.PREMIUM_REQUIRED)
+```
+
+### SSH 密钥认证预留
+
+当前版本仅支持密码认证。未来可扩展支持 SSH 密钥认证：
+
+```yaml
+# config/settings.yaml 预留配置
+ssh:
+  host: ""
+  port: 22
+  user: ""
+  password: ""  # 密码认证
+  password_encrypted: ""  # 加密后的密码
+  # 密钥认证（预留）
+  key_file: ""  # 私钥文件路径，如 ~/.ssh/id_rsa
+  key_passphrase: ""  # 私钥密码（可选）
+  auth_type: "password"  # "password" | "key"
+```
 
 ---
 
@@ -272,7 +467,19 @@ cloud:
 
 | 风险 | 缓解措施 |
 |------|---------|
-| SSH 连接不稳定 | 重试机制 + 超时设置 |
-| 密码明文存储 | 使用 AES 加密 |
-| 大文件上传慢 | 进度显示 + 异步上传 |
+| SSH 连接不稳定 | 重试机制（3次，指数退避）+ 超时设置（30秒） |
+| 密码明文存储 | 使用 AES 加密，config 中只存储加密后密码 |
+| 大文件上传慢 | 进度显示 + 异步上传（QThread） |
 | 服务器目录不存在 | 自动创建 ~/.claude-backups/ |
+| MITM 攻击风险 | 文档说明 AutoAddPolicy 风险，建议首次连接可信服务器 |
+| 认证失败 | 区分 AuthenticationError，给出明确错误提示 |
+
+### 安全注意事项
+
+**AutoAddPolicy 风险说明**：
+
+`AutoAddPolicy` 会自动接受未知的主机密钥，存在中间人攻击风险。缓解措施：
+
+1. 文档中明确告知用户风险
+2. 优先加载系统 `known_hosts`（已实现）
+3. 未来可添加"严格模式"选项，仅接受 known_hosts 中的主机
