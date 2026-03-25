@@ -36,7 +36,8 @@ class LoadCloudBackupsWorker(QThread):
                 files = self.storage.list_files()
             self.finished.emit(files)
         except Exception as e:
-            self.error.emit(str(e))
+            from utils.ssh_helper import get_friendly_ssh_error
+            self.error.emit(get_friendly_ssh_error(str(e)))
 
 class RestoreWorker(QThread):
     """恢复工作线程"""
@@ -59,7 +60,8 @@ class RestoreWorker(QThread):
             )
             self.finished.emit(result)
         except Exception as e:
-            self.error.emit(str(e))
+            from utils.ssh_helper import get_friendly_ssh_error
+            self.error.emit(get_friendly_ssh_error(str(e)))
 
 class DownloadWorker(QThread):
     """下载工作线程"""
@@ -82,7 +84,8 @@ class DownloadWorker(QThread):
                 self.storage.download(self.cloud_file["path"], self.cache_path)
             self.finished.emit(self.cache_path)
         except Exception as e:
-            self.error.emit(str(e))
+            from utils.ssh_helper import get_friendly_ssh_error
+            self.error.emit(get_friendly_ssh_error(str(e)))
 
 
 class RestoreTab(QWidget):
@@ -294,24 +297,11 @@ class RestoreTab(QWidget):
                 return
             self.storage = GitHubStorage(token)
         elif storage_type == "ssh":
-            ssh_host = self.config.get("ssh.host", "")
-            if not ssh_host:
+            from utils.ssh_helper import get_ssh_storage
+            self.storage = get_ssh_storage(self.config)
+            if not self.storage:
                 self._refresh_source_ui()
                 return
-
-            # 获取 SSH 配置
-            password = self.config.get("ssh.password", "")
-            password_encrypted = self.config.get("ssh.password_encrypted", "")
-            if password_encrypted:
-                crypto = Crypto()
-                password = crypto.decrypt(password_encrypted)
-
-            self.storage = SSHStorage(
-                host=ssh_host,
-                port=self.config.get("ssh.port", 22),
-                user=self.config.get("ssh.user", ""),
-                password=password
-            )
         else:
             # 本地存储不支持云端备份
             return

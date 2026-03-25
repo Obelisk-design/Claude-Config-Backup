@@ -95,14 +95,12 @@ class SSHUploadWorker(QThread):
     def run(self):
         try:
             from pathlib import Path
+            from utils.ssh_helper import decrypt_ssh_password
             self.progress.emit("正在上传到 SSH 服务器...")
             backup_file = Path(self.backup_file_path) if isinstance(self.backup_file_path, str) else self.backup_file_path
 
             # 获取解密后的密码
-            password = self.ssh_config.get("password", "")
-            if self.ssh_config.get("password_encrypted"):
-                crypto = Crypto()
-                password = crypto.decrypt(self.ssh_config["password_encrypted"])
+            password = decrypt_ssh_password(self.ssh_config)
 
             storage = SSHStorage(
                 host=self.ssh_config["host"],
@@ -119,7 +117,8 @@ class SSHUploadWorker(QThread):
             else:
                 self.error.emit("上传失败")
         except Exception as e:
-            self.error.emit(str(e))
+            from utils.ssh_helper import get_friendly_ssh_error
+            self.error.emit(get_friendly_ssh_error(str(e)))
 
 
 class BackupTab(QWidget):

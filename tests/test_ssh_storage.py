@@ -73,6 +73,50 @@ class TestSSHStorageContext:
             with SSHStorage("host", 22, "user", "wrong_pass"):
                 pass
 
+    @patch('storage.ssh_storage.SSHClient')
+    @patch('time.sleep')  # Mock sleep to speed up test
+    def test_connect_retry_success(self, mock_sleep, mock_ssh_client):
+        """测试连接重试成功"""
+        from storage.ssh_storage import SSHStorage
+
+        mock_client = MagicMock()
+        mock_sftp = MagicMock()
+        mock_client.open_sftp.return_value = mock_sftp
+
+        # 第一次失败，第二次成功
+        mock_ssh_client.side_effect = [
+            Exception("Connection refused"),
+            mock_client
+        ]
+
+        with SSHStorage("host", 22, "user", "pass") as storage:
+            assert storage._client is not None
+            # 验证重试了一次
+            assert mock_ssh_client.call_count == 2
+            # 验证 sleep 被调用（重试延迟）
+            mock_sleep.assert_called_once()
+
+    @patch('storage.ssh_storage.SSHClient')
+    @patch('time.sleep')
+    def test_connect_retry_exhausted(self, mock_sleep, mock_ssh_client):
+        """测试连接重试耗尽"""
+        from storage.ssh_storage import SSHStorage
+        from core.exceptions import NetworkError
+
+        # 所有 3 次尝试都失败
+        mock_ssh_client.side_effect = Exception("Connection refused")
+
+        with pytest.raises(NetworkError) as exc_info:
+            with SSHStorage("host", 22, "user", "pass"):
+                pass
+
+        # 验证错误信息包含重试次数
+        assert "3 retries" in str(exc_info.value)
+        # 验证尝试了 3 次
+        assert mock_ssh_client.call_count == 3
+        # 验证 sleep 被调用 2 次（第一次失败后开始重试）
+        assert mock_sleep.call_count == 2
+
 
 class TestSSHStorageHelpers:
     """测试辅助方法"""

@@ -35,7 +35,8 @@ class LoadHistoryWorker(QThread):
                 files = self.storage.list_files()
             self.finished.emit(files)
         except Exception as e:
-            self.error.emit(str(e))
+            from utils.ssh_helper import get_friendly_ssh_error
+            self.error.emit(get_friendly_ssh_error(str(e)))
 
 class DownloadWorker(QThread):
     """下载工作线程"""
@@ -58,7 +59,8 @@ class DownloadWorker(QThread):
                 self.storage.download(self.backup_path, self.save_path)
             self.finished.emit(self.save_path)
         except Exception as e:
-            self.error.emit(str(e))
+            from utils.ssh_helper import get_friendly_ssh_error
+            self.error.emit(get_friendly_ssh_error(str(e)))
 
 class DeleteWorker(QThread):
     """删除工作线程"""
@@ -81,7 +83,8 @@ class DeleteWorker(QThread):
                 self.storage.delete(self.backup_path)
             self.finished.emit(self.backup_name)
         except Exception as e:
-            self.error.emit(str(e))
+            from utils.ssh_helper import get_friendly_ssh_error
+            self.error.emit(get_friendly_ssh_error(str(e)))
 
 
 class EmptyStateWidget(QFrame):
@@ -232,25 +235,12 @@ class HistoryTab(QWidget):
                 return
             self.storage = GitHubStorage(token)
         elif storage_type == "ssh":
-            ssh_host = self.config.get("ssh.host", "")
-            if not ssh_host:
+            from utils.ssh_helper import get_ssh_storage
+            self.storage = get_ssh_storage(self.config)
+            if not self.storage:
                 self.table.setRowCount(0)
                 self.stack.setCurrentWidget(self.login_state)
                 return
-
-            # 获取 SSH 配置
-            password = self.config.get("ssh.password", "")
-            password_encrypted = self.config.get("ssh.password_encrypted", "")
-            if password_encrypted:
-                crypto = Crypto()
-                password = crypto.decrypt(password_encrypted)
-
-            self.storage = SSHStorage(
-                host=ssh_host,
-                port=self.config.get("ssh.port", 22),
-                user=self.config.get("ssh.user", ""),
-                password=password
-            )
         else:
             # 本地存储不支持历史记录
             self.table.setRowCount(0)
@@ -346,18 +336,8 @@ class HistoryTab(QWidget):
         # 对于 SSH 需要重构存储对象，因为它是临时的
         storage = self.storage
         if is_ssh:
-            password = self.config.get("ssh.password", "")
-            password_encrypted = self.config.get("ssh.password_encrypted", "")
-            if password_encrypted:
-                crypto = Crypto()
-                password = crypto.decrypt(password_encrypted)
-
-            storage = SSHStorage(
-                host=self.config.get("ssh.host", ""),
-                port=self.config.get("ssh.port", 22),
-                user=self.config.get("ssh.user", ""),
-                password=password
-            )
+            from utils.ssh_helper import get_ssh_storage
+            storage = get_ssh_storage(self.config)
 
         self.download_worker = DownloadWorker(storage, backup_file["path"], save_path, is_ssh)
         self.download_worker.finished.connect(self._on_download_finished)
@@ -385,18 +365,8 @@ class HistoryTab(QWidget):
             storage = self.storage
             if is_ssh:
                 # SSH 需要 context manager，重新创建连接
-                password = self.config.get("ssh.password", "")
-                password_encrypted = self.config.get("ssh.password_encrypted", "")
-                if password_encrypted:
-                    crypto = Crypto()
-                    password = crypto.decrypt(password_encrypted)
-
-                storage = SSHStorage(
-                    host=self.config.get("ssh.host", ""),
-                    port=self.config.get("ssh.port", 22),
-                    user=self.config.get("ssh.user", ""),
-                    password=password
-                )
+                from utils.ssh_helper import get_ssh_storage
+                storage = get_ssh_storage(self.config)
 
             self.delete_worker = DeleteWorker(storage, backup_file["path"], backup_file["name"], is_ssh)
             self.delete_worker.finished.connect(self._on_delete_finished)
