@@ -11,8 +11,10 @@ from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from gui.dialogs.preview_dialog import PreviewDialog
 from core.backup_manager import BackupManager
 from storage.github_storage import GitHubStorage
+from storage.ssh_storage import SSHStorage
 from auth.token_manager import TokenManager
 from core.module_loader import ModuleLoader
+from security.crypto import Crypto
 from utils.config import get_config
 from utils.logger import logger
 from gui.styles import (
@@ -72,6 +74,48 @@ class UploadWorker(QThread):
             if success:
                 size_kb = backup_file.stat().st_size / 1024
                 self.finished.emit(True, f"文件：{self.remote_name}\n大小：{size_kb:.1f} KB\n已上传到 GitHub")
+            else:
+                self.error.emit("上传失败")
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class SSHUploadWorker(QThread):
+    """SSH 上传工作线程"""
+    finished = pyqtSignal(bool, str)  # success, message
+    error = pyqtSignal(str)
+    progress = pyqtSignal(str)
+
+    def __init__(self, ssh_config, backup_file_path, remote_name):
+        super().__init__()
+        self.ssh_config = ssh_config
+        self.backup_file_path = backup_file_path
+        self.remote_name = remote_name
+
+    def run(self):
+        try:
+            from pathlib import Path
+            self.progress.emit("正在上传到 SSH 服务器...")
+            backup_file = Path(self.backup_file_path) if isinstance(self.backup_file_path, str) else self.backup_file_path
+
+            # 获取解密后的密码
+            password = self.ssh_config.get("password", "")
+            if self.ssh_config.get("password_encrypted"):
+                crypto = Crypto()
+                password = crypto.decrypt(self.ssh_config["password_encrypted"])
+
+            storage = SSHStorage(
+                host=self.ssh_config["host"],
+                port=self.ssh_config.get("port", 22),
+                user=self.ssh_config["user"],
+                password=password
+            )
+            with storage:
+                success = storage.upload(str(backup_file), self.remote_name)
+
+            if success:
+                size_kb = backup_file.stat().st_size / 1024
+                self.finished.emit(True, f"文件：{self.remote_name}\n大小：{size_kb:.1f} KB\n已上传到 SSH 服务器")
             else:
                 self.error.emit("上传失败")
         except Exception as e:
@@ -390,8 +434,27 @@ class BackupTab(QWidget):
             self.worker.error.connect(self._on_backup_error)
             self.worker.start()
         elif storage_type == "ssh":
-            self._reset_backup_button()
-            QMessageBox.information(self, "提示", "SSH 存储功能开发中...")
+            # SSH 上传
+            ssh_config = {
+                "host": self.config.get("ssh.host", ""),
+                "port": self.config.get("ssh.port", 22),
+                "user": self.config.get("ssh.user", ""),
+                "password": self.config.get("ssh.password", ""),
+                "password_encrypted": self.config.get("ssh.password_encrypted", "")
+            }
+
+            if not ssh_config["host"]:
+                self._reset_backup_button()
+                QMessageBox.warning(self, "提示", "请先在设置中配置 SSH 连接信息")
+                return
+
+            remote_name = backup_file.name
+
+            # 创建 SSH 上传工作线程
+            self.worker = SSHUploadWorker(ssh_config, backup_file_path, remote_name)
+            self.worker.finished.connect(lambda success, msg: self._on_upload_finished(success, msg, backup_file))
+            self.worker.error.connect(self._on_backup_error)
+            self.worker.start()
         else:
             # 本地存储
             size_kb = backup_file.stat().st_size / 1024
