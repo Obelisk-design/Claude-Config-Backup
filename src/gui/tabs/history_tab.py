@@ -11,7 +11,10 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 
 from storage.github_storage import GitHubStorage
+from storage.ssh_storage import SSHStorage
 from auth.token_manager import TokenManager
+from security.crypto import Crypto
+from utils.config import get_config
 
 
 class EmptyStateWidget(QFrame):
@@ -63,6 +66,7 @@ class HistoryTab(QWidget):
         super().__init__()
 
         self.token_manager = TokenManager()
+        self.config = get_config()
         self.storage = None
         self.open_backup_page = open_backup_page
         self.open_restore_page = open_restore_page
@@ -102,8 +106,8 @@ class HistoryTab(QWidget):
 
         self.login_state = EmptyStateWidget(
             icon="🔐",
-            title="请先登录 GitHub",
-            description="历史记录仅显示云端备份，登录后即可查看、下载和删除已有备份",
+            title="请先登录",
+            description="历史记录仅显示云端备份，登录或配置 SSH 后即可查看、下载和删除已有备份",
             button_text="前往登录",
             button_callback=self._go_to_login
         )
@@ -150,10 +154,40 @@ class HistoryTab(QWidget):
 
     def _load_backups(self):
         """加载备份列表"""
-        token = self.token_manager.load_token()
-        if not token:
+        storage_type = self.config.get("storage.type", "github")
+
+        # 检查是否已配置
+        if storage_type == "github":
+            token = self.token_manager.load_token()
+            if not token:
+                self.table.setRowCount(0)
+                self.stack.setCurrentWidget(self.login_state)
+                return
+            self.storage = GitHubStorage(token)
+        elif storage_type == "ssh":
+            ssh_host = self.config.get("ssh.host", "")
+            if not ssh_host:
+                self.table.setRowCount(0)
+                self.stack.setCurrentWidget(self.login_state)
+                return
+
+            # 获取 SSH 配置
+            password = self.config.get("ssh.password", "")
+            password_encrypted = self.config.get("ssh.password_encrypted", "")
+            if password_encrypted:
+                crypto = Crypto()
+                password = crypto.decrypt(password_encrypted)
+
+            self.storage = SSHStorage(
+                host=ssh_host,
+                port=self.config.get("ssh.port", 22),
+                user=self.config.get("ssh.user", ""),
+                password=password
+            )
+        else:
+            # 本地存储不支持历史记录
             self.table.setRowCount(0)
-            self.stack.setCurrentWidget(self.login_state)
+            self.stack.setCurrentWidget(self.empty_state)
             return
 
         # 显示加载状态
@@ -162,8 +196,12 @@ class HistoryTab(QWidget):
         self.refresh_btn.setText("⏳ 刷新中...")
 
         try:
-            self.storage = GitHubStorage(token)
-            files = self.storage.list_files()
+            # SSH 需要 context manager
+            if storage_type == "ssh" and isinstance(self.storage, SSHStorage):
+                with self.storage:
+                    files = self.storage.list_files()
+            else:
+                files = self.storage.list_files()
 
             if not files:
                 # 显示空状态
@@ -219,9 +257,7 @@ class HistoryTab(QWidget):
 
     def _download(self, backup_file: dict):
         """下载指定备份"""
-        if not self.storage:
-            QMessageBox.warning(self, "提示", "请先刷新备份列表")
-            return
+        storage_type = self.config.get("storage.type", "github")
 
         default_path = str(Path.home() / "Downloads" / backup_file["name"])
         save_path, _ = QFileDialog.getSaveFileName(
@@ -235,7 +271,24 @@ class HistoryTab(QWidget):
             return
 
         try:
-            self.storage.download(backup_file["path"], save_path)
+            if storage_type == "ssh":
+                # SSH 需要 context manager，重新创建连接
+                password = self.config.get("ssh.password", "")
+                password_encrypted = self.config.get("ssh.password_encrypted", "")
+                if password_encrypted:
+                    crypto = Crypto()
+                    password = crypto.decrypt(password_encrypted)
+
+                storage = SSHStorage(
+                    host=self.config.get("ssh.host", ""),
+                    port=self.config.get("ssh.port", 22),
+                    user=self.config.get("ssh.user", ""),
+                    password=password
+                )
+                with storage:
+                    storage.download(backup_file["path"], save_path)
+            else:
+                self.storage.download(backup_file["path"], save_path)
             QMessageBox.information(self, "下载成功", f"备份已保存到：\n{save_path}")
         except Exception as e:
             QMessageBox.critical(self, "下载失败", f"无法下载备份：{str(e)}")
@@ -248,8 +301,26 @@ class HistoryTab(QWidget):
             QMessageBox.Yes | QMessageBox.No
         )
         if reply == QMessageBox.Yes:
+            storage_type = self.config.get("storage.type", "github")
             try:
-                self.storage.delete(backup_file["path"])
+                if storage_type == "ssh":
+                    # SSH 需要 context manager，重新创建连接
+                    password = self.config.get("ssh.password", "")
+                    password_encrypted = self.config.get("ssh.password_encrypted", "")
+                    if password_encrypted:
+                        crypto = Crypto()
+                        password = crypto.decrypt(password_encrypted)
+
+                    storage = SSHStorage(
+                        host=self.config.get("ssh.host", ""),
+                        port=self.config.get("ssh.port", 22),
+                        user=self.config.get("ssh.user", ""),
+                        password=password
+                    )
+                    with storage:
+                        storage.delete(backup_file["path"])
+                else:
+                    self.storage.delete(backup_file["path"])
                 QMessageBox.information(self, "删除成功", f"已删除备份：{backup_file['name']}")
                 self._load_backups()
             except Exception as e:
