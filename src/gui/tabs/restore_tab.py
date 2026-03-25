@@ -11,7 +11,10 @@ from PyQt5.QtCore import Qt
 
 from core.restore_manager import RestoreManager
 from storage.github_storage import GitHubStorage
+from storage.ssh_storage import SSHStorage
 from auth.token_manager import TokenManager
+from security.crypto import Crypto
+from utils.config import get_config
 from utils.logger import logger
 
 
@@ -23,6 +26,7 @@ class RestoreTab(QWidget):
 
         self.restore_manager = RestoreManager()
         self.token_manager = TokenManager()
+        self.config = get_config()
         self.storage = None
         self.selected_file = None
         self.selected_cloud_file = None
@@ -161,10 +165,26 @@ class RestoreTab(QWidget):
     def _refresh_source_ui(self):
         """刷新来源 UI"""
         is_local = self.local_radio.isChecked()
-        is_logged_in = self.token_manager.is_logged_in()
+        storage_type = self.config.get("storage.type", "github")
 
-        self.backup_list.setVisible(not is_local and is_logged_in)
-        self.login_hint_widget.setVisible(not is_local and not is_logged_in)
+        # GitHub 存储需要登录
+        if storage_type == "github":
+            is_logged_in = self.token_manager.is_logged_in()
+            self.login_hint_widget.setVisible(not is_local and not is_logged_in)
+            self.backup_list.setVisible(not is_local and is_logged_in)
+        elif storage_type == "ssh":
+            # SSH 存储需要配置
+            has_ssh_config = bool(self.config.get("ssh.host", ""))
+            self.login_hint_widget.setVisible(not is_local and not has_ssh_config)
+            self.backup_list.setVisible(not is_local and has_ssh_config)
+            # 更新登录提示文本
+            if storage_type == "ssh":
+                for child in self.login_hint_widget.findChildren(QLabel):
+                    child.setText("请先在设置中配置 SSH 连接信息")
+        else:
+            # 本地存储
+            self.login_hint_widget.setVisible(False)
+            self.backup_list.setVisible(False)
 
         self.file_path_label.setVisible(is_local)
         self.browse_btn.setVisible(is_local)
@@ -198,12 +218,37 @@ class RestoreTab(QWidget):
 
     def _load_cloud_backups(self):
         """加载云端备份列表"""
-        token = self.token_manager.load_token()
-        if not token:
-            self._refresh_source_ui()
+        storage_type = self.config.get("storage.type", "github")
+
+        if storage_type == "github":
+            token = self.token_manager.load_token()
+            if not token:
+                self._refresh_source_ui()
+                return
+            self.storage = GitHubStorage(token)
+        elif storage_type == "ssh":
+            ssh_host = self.config.get("ssh.host", "")
+            if not ssh_host:
+                self._refresh_source_ui()
+                return
+
+            # 获取 SSH 配置
+            password = self.config.get("ssh.password", "")
+            password_encrypted = self.config.get("ssh.password_encrypted", "")
+            if password_encrypted:
+                crypto = Crypto()
+                password = crypto.decrypt(password_encrypted)
+
+            self.storage = SSHStorage(
+                host=ssh_host,
+                port=self.config.get("ssh.port", 22),
+                user=self.config.get("ssh.user", ""),
+                password=password
+            )
+        else:
+            # 本地存储不支持云端备份
             return
 
-        self.storage = GitHubStorage(token)
         files = self.storage.list_files()
 
         self.backup_list.clear()
@@ -246,7 +291,16 @@ class RestoreTab(QWidget):
             return None, None
 
         cache_path = self.restore_manager.cache_dir / self.selected_cloud_file["name"]
-        self.storage.download(self.selected_cloud_file["path"], cache_path)
+
+        # 根据存储类型下载
+        storage_type = self.config.get("storage.type", "github")
+        if storage_type == "ssh" and isinstance(self.storage, SSHStorage):
+            # SSH 需要 context manager
+            with self.storage:
+                self.storage.download(self.selected_cloud_file["path"], cache_path)
+        else:
+            self.storage.download(self.selected_cloud_file["path"], cache_path)
+
         return cache_path, cache_path
 
     def _on_restore(self):
@@ -262,6 +316,7 @@ class RestoreTab(QWidget):
             self.restore_btn.setEnabled(False)
             self.restore_btn.setText("⏳ 恢复中...")
 
+            # 执行同步恢复
             result = self.restore_manager.restore(
                 backup_file,
                 skip_existing=self.skip_existing.isChecked(),
