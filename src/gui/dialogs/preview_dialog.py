@@ -16,7 +16,8 @@ class PreviewDialog(QDialog):
 
         self.preview_data = preview_data
         self.setWindowTitle("备份预览")
-        self.setMinimumSize(500, 400)
+        self.setMinimumSize(420, 400)
+        self.resize(480, 450)
 
         self._init_ui()
 

@@ -5,7 +5,7 @@ from pathlib import Path
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QListWidget, QFileDialog, QMessageBox,
-    QCheckBox, QGroupBox
+    QCheckBox, QGroupBox, QScrollArea, QFrame
 )
 from PyQt5.QtCore import Qt
 
@@ -30,11 +30,50 @@ class RestoreTab(QWidget):
 
     def _init_ui(self):
         """初始化 UI"""
-        layout = QVBoxLayout(self)
+        # 主布局
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # 滚动区域
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.NoFrame)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setStyleSheet("""
+            QScrollArea {
+                background-color: transparent;
+                border: none;
+            }
+            QScrollBar:vertical {
+                background-color: #1a222d;
+                width: 10px;
+                border-radius: 5px;
+                margin: 0;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #3d4a5c;
+                border-radius: 5px;
+                min-height: 30px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #00f0ff;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0;
+            }
+        """)
+
+        # 滚动内容
+        scroll_content = QWidget()
+        layout = QVBoxLayout(scroll_content)
+        layout.setContentsMargins(0, 0, 8, 0)
+        layout.setSpacing(20)
 
         # 来源选择
         source_group = QGroupBox("选择备份来源")
         source_layout = QVBoxLayout(source_group)
+        source_layout.setSpacing(12)
 
         self.local_radio = QCheckBox("本地文件")
         self.local_radio.setChecked(True)
@@ -44,6 +83,7 @@ class RestoreTab(QWidget):
         self.file_path_label = QLabel("未选择文件")
         browse_layout.addWidget(self.file_path_label)
         browse_btn = QPushButton("浏览...")
+        browse_btn.setProperty("secondary", True)
         browse_btn.clicked.connect(self._on_browse)
         browse_layout.addWidget(browse_btn)
         source_layout.addLayout(browse_layout)
@@ -56,11 +96,13 @@ class RestoreTab(QWidget):
         # 云端备份列表
         self.backup_list = QListWidget()
         self.backup_list.setVisible(False)
+        self.backup_list.setMinimumHeight(150)
         layout.addWidget(self.backup_list)
 
         # 恢复选项
         options_group = QGroupBox("恢复选项")
         options_layout = QVBoxLayout(options_group)
+        options_layout.setSpacing(12)
 
         self.backup_current = QCheckBox("恢复前备份当前配置")
         self.backup_current.setChecked(True)
@@ -75,12 +117,19 @@ class RestoreTab(QWidget):
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
 
-        self.restore_btn = QPushButton("开始恢复")
+        self.restore_btn = QPushButton("🔄 开始恢复")
+        self.restore_btn.setProperty("primary", True)
+        self.restore_btn.setMinimumWidth(160)
+        self.restore_btn.setMinimumHeight(44)
         self.restore_btn.clicked.connect(self._on_restore)
-        self.restore_btn.setStyleSheet("background-color: #2196F3; color: white;")
         btn_layout.addWidget(self.restore_btn)
 
         layout.addLayout(btn_layout)
+        layout.addStretch()
+
+        # 设置滚动区域
+        scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(scroll_area)
 
         # 连接信号
         self.local_radio.stateChanged.connect(self._on_source_changed)
@@ -136,7 +185,7 @@ class RestoreTab(QWidget):
         # 执行恢复
         try:
             self.restore_btn.setEnabled(False)
-            self.restore_btn.setText("恢复中...")
+            self.restore_btn.setText("⏳ 恢复中...")
 
             result = self.restore_manager.restore(
                 backup_file,
@@ -159,4 +208,4 @@ class RestoreTab(QWidget):
 
         finally:
             self.restore_btn.setEnabled(True)
-            self.restore_btn.setText("开始恢复")
+            self.restore_btn.setText("🔄 开始恢复")
