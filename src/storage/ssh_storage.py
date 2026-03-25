@@ -37,6 +37,64 @@ class SSHStorage(StorageBase):
         self._client: Optional[SSHClient] = None
         self._sftp = None
 
+    # 上下文管理器支持
+    def __enter__(self):
+        """进入上下文时建立连接"""
+        self._connect()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """退出上下文时关闭连接"""
+        self._disconnect()
+        return False
+
+    def _connect(self):
+        """建立 SSH/SFTP 连接（带重试）"""
+        import time
+        import paramiko
+
+        last_error = None
+
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                self._client = SSHClient()
+                # 安全策略：优先加载系统 known_hosts
+                self._client.load_system_host_keys()
+                # 警告：AutoAddPolicy 会自动接受新主机密钥，存在 MITM 风险
+                # 用户应确保首次连接到可信服务器
+                self._client.set_missing_host_key_policy(AutoAddPolicy())
+
+                self._client.connect(
+                    hostname=self.host,
+                    port=self.port,
+                    username=self.user,
+                    password=self.password,
+                    timeout=self.TIMEOUT
+                )
+                self._sftp = self._client.open_sftp()
+                logger.info(f"SSH connected: {self.host}:{self.port}")
+                return
+            except paramiko.AuthenticationException as e:
+                # 认证失败不重试
+                raise AuthenticationError(f"SSH authentication failed: {e}")
+            except Exception as e:
+                last_error = e
+                if attempt < self.MAX_RETRIES - 1:
+                    # 线性退避：2s, 4s, 6s
+                    time.sleep(self.RETRY_DELAY * (attempt + 1))
+
+        raise NetworkError(f"SSH connection failed after {self.MAX_RETRIES} retries: {last_error}")
+
+    def _disconnect(self):
+        """关闭连接"""
+        if self._sftp:
+            self._sftp.close()
+            self._sftp = None
+        if self._client:
+            self._client.close()
+            self._client = None
+        logger.debug("SSH connection closed")
+
     # StorageBase 抽象方法实现（后续任务中完善）
     def upload(self, local_path: str, remote_path: str) -> bool:
         raise NotImplementedError("upload method not implemented")

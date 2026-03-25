@@ -37,3 +37,38 @@ class TestSSHStorageInit:
         assert SSHStorage.MAX_RETRIES == 3
         assert SSHStorage.RETRY_DELAY == 2
         assert SSHStorage.TIMEOUT == 30
+
+
+class TestSSHStorageContext:
+    """测试上下文管理器"""
+
+    @patch('storage.ssh_storage.SSHClient')
+    def test_context_manager_connect(self, mock_ssh_client):
+        """测试上下文管理器连接"""
+        from storage.ssh_storage import SSHStorage
+
+        mock_client = MagicMock()
+        mock_sftp = MagicMock()
+        mock_client.open_sftp.return_value = mock_sftp
+        mock_ssh_client.return_value = mock_client
+
+        with SSHStorage("host", 22, "user", "pass") as storage:
+            assert storage._client is not None
+            assert storage._sftp is not None
+
+        # 退出上下文后关闭连接
+        mock_sftp.close.assert_called_once()
+        mock_client.close.assert_called_once()
+
+    @patch('storage.ssh_storage.SSHClient')
+    def test_context_manager_auth_error(self, mock_ssh_client):
+        """测试认证失败"""
+        from storage.ssh_storage import SSHStorage
+        from core.exceptions import AuthenticationError
+        import paramiko
+
+        mock_ssh_client.side_effect = paramiko.AuthenticationException("Auth failed")
+
+        with pytest.raises(AuthenticationError):
+            with SSHStorage("host", 22, "user", "wrong_pass"):
+                pass
