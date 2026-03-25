@@ -1,22 +1,21 @@
 # -*- coding: utf-8 -*-
-"""主窗口"""
+"""主窗口 - 侧边栏导航版本"""
 
 from PyQt5.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QTabWidget, QLabel, QPushButton, QMessageBox, QFrame
+    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
+    QLabel, QMessageBox, QStackedWidget, QFrame
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont, QIcon, QPixmap, QPainter, QColor, QLinearGradient, QPen
 
+from gui.widgets.sidebar import Sidebar
 from gui.tabs.backup_tab import BackupTab
 from gui.tabs.restore_tab import RestoreTab
 from gui.tabs.history_tab import HistoryTab
 from gui.tabs.settings_tab import SettingsTab
 from gui.dialogs.login_dialog import LoginDialog
 from gui.widgets.status_bar import CustomStatusBar
-from gui.styles import (
-    get_app_style, get_user_bar_style, get_status_bar_style, get_ad_bar_style
-)
+from gui.styles import get_app_style, get_status_bar_style
 from auth.token_manager import TokenManager
 from utils.logger import logger
 
@@ -70,7 +69,7 @@ class MainWindow(QMainWindow):
     def _init_ui(self):
         """初始化 UI"""
         self.setWindowTitle("Claude Config Backup")
-        self.setMinimumSize(950, 800)
+        self.setMinimumSize(950, 700)
 
         # 应用全局样式
         self.setStyleSheet(get_app_style())
@@ -81,104 +80,62 @@ class MainWindow(QMainWindow):
         # 中心部件
         central = QWidget()
         self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        main_layout = QHBoxLayout(central)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
-        # 用户信息栏
-        self._create_user_bar(layout)
+        # 侧边栏
+        self.sidebar = Sidebar()
+        self.sidebar.page_changed.connect(self._on_page_changed)
+        self.sidebar.login_btn.clicked.connect(self._on_login_click)
+        self.sidebar.logout_btn.clicked.connect(self._on_logout_click)
+        main_layout.addWidget(self.sidebar)
 
-        # 内容区域
+        # 右侧内容区域
         content = QWidget()
         content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(24, 20, 24, 24)
+        content_layout.setContentsMargins(24, 20, 24, 16)
+        content_layout.setSpacing(0)
 
-        # Tab 页面
-        self.tab_widget = QTabWidget()
-        self.tab_widget.setFont(QFont("Segoe UI", 10))
+        # 页面堆栈
+        self.stack = QStackedWidget()
 
-        # 创建各 Tab
+        # 创建各页面
         self.backup_tab = BackupTab()
         self.restore_tab = RestoreTab()
         self.history_tab = HistoryTab()
         self.settings_tab = SettingsTab()
 
-        self.tab_widget.addTab(self.backup_tab, "📦 备份")
-        self.tab_widget.addTab(self.restore_tab, "📥 恢复")
-        self.tab_widget.addTab(self.history_tab, "📋 历史")
-        self.tab_widget.addTab(self.settings_tab, "⚙️ 设置")
+        # 连接设置变化信号
+        self.settings_tab.settings_changed.connect(self._on_settings_changed)
 
-        content_layout.addWidget(self.tab_widget)
-        layout.addWidget(content, 1)
+        self.stack.addWidget(self.backup_tab)
+        self.stack.addWidget(self.restore_tab)
+        self.stack.addWidget(self.history_tab)
+        self.stack.addWidget(self.settings_tab)
+
+        content_layout.addWidget(self.stack, 1)
 
         # 状态栏
         self.status_bar = CustomStatusBar()
         self.setStatusBar(self.status_bar)
 
-        # 广告位
-        self._create_ad_bar(layout)
+        main_layout.addWidget(content, 1)
 
-    def _create_user_bar(self, parent_layout):
-        """创建用户信息栏"""
-        bar = QFrame()
-        bar.setObjectName("userBar")
-        bar.setStyleSheet(get_user_bar_style())
-        bar.setFixedHeight(72)
-        layout = QHBoxLayout(bar)
-        layout.setContentsMargins(24, 0, 24, 0)
+    def _on_page_changed(self, index: int):
+        """页面切换"""
+        self.stack.setCurrentIndex(index)
 
-        # 应用图标和标题
-        title_layout = QHBoxLayout()
-        title_layout.setSpacing(14)
+        # 历史页面显示时加载数据
+        if index == 2:
+            self.history_tab._load_backups()
 
-        icon_label = QLabel()
-        icon_label.setPixmap(create_app_icon().pixmap(36, 36))
-        title_layout.addWidget(icon_label)
-
-        app_title = QLabel("Claude Config Backup")
-        app_title.setObjectName("appTitle")
-        app_title.setFont(QFont("Segoe UI", 15, QFont.Bold))
-        title_layout.addWidget(app_title)
-
-        layout.addLayout(title_layout)
-        layout.addStretch()
-
-        # 用户信息
-        self.user_label = QLabel("未登录")
-        self.user_label.setObjectName("userLabel")
-        self.user_label.setFont(QFont("Segoe UI", 10))
-        layout.addWidget(self.user_label)
-
-        layout.addSpacing(20)
-
-        # 登录/退出按钮
-        self.login_btn = QPushButton("GitHub 登录")
-        self.login_btn.setObjectName("loginBtn")
-        self.login_btn.clicked.connect(self._on_login_click)
-        layout.addWidget(self.login_btn)
-
-        self.logout_btn = QPushButton("退出登录")
-        self.logout_btn.setObjectName("logoutBtn")
-        self.logout_btn.clicked.connect(self._on_logout_click)
-        self.logout_btn.setVisible(False)
-        layout.addWidget(self.logout_btn)
-
-        parent_layout.addWidget(bar)
-
-    def _create_ad_bar(self, parent_layout):
-        """创建广告位"""
-        ad_bar = QFrame()
-        ad_bar.setObjectName("adBar")
-        ad_bar.setStyleSheet(get_ad_bar_style())
-        ad_bar.setFixedHeight(52)
-        layout = QHBoxLayout(ad_bar)
-
-        ad_label = QLabel("⚡ PRO 功能即将推出 · 更多存储选项 · 团队协作")
-        ad_label.setObjectName("adLabel")
-        ad_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(ad_label)
-
-        parent_layout.addWidget(ad_bar)
+    def _on_settings_changed(self):
+        """设置变化"""
+        # 刷新侧边栏登录显示
+        self.sidebar.refresh_storage_type()
+        # 刷新备份页面存储位置
+        self.backup_tab._update_storage_display()
 
     def _check_login(self):
         """检查登录状态"""
@@ -191,12 +148,7 @@ class MainWindow(QMainWindow):
         """更新用户信息显示"""
         self.user_info = user_info
         username = user_info.get("login", "User")
-
-        self.user_label.setText(f"✓ {username}")
-        self.user_label.setStyleSheet("color: #00ff88;")
-        self.login_btn.setVisible(False)
-        self.logout_btn.setVisible(True)
-
+        self.sidebar.update_user_info(username)
         self.login_success.emit(user_info)
 
     def _on_login_click(self):
@@ -219,8 +171,5 @@ class MainWindow(QMainWindow):
         if reply == QMessageBox.Yes:
             self.token_manager.clear_token()
             self.user_info = None
-            self.user_label.setText("未登录")
-            self.user_label.setStyleSheet("")
-            self.login_btn.setVisible(True)
-            self.logout_btn.setVisible(False)
+            self.sidebar.update_user_info(None)
             self.logout_success.emit()

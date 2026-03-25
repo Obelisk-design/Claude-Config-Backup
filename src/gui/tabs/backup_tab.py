@@ -13,6 +13,7 @@ from core.backup_manager import BackupManager
 from storage.github_storage import GitHubStorage
 from auth.token_manager import TokenManager
 from core.module_loader import ModuleLoader
+from utils.config import get_config
 from utils.logger import logger
 from gui.styles import (
     PRIMARY, TEXT_PRIMARY, TEXT_MUTED, BG_BASE, BG_ELEVATED,
@@ -28,6 +29,7 @@ class BackupTab(QWidget):
         self.backup_manager = BackupManager()
         self.token_manager = TokenManager()
         self.module_loader = ModuleLoader()
+        self.config = get_config()
         self.checkboxes = {}
         self._init_ui()
 
@@ -180,11 +182,11 @@ class BackupTab(QWidget):
         storage_label.setFixedWidth(80)
         storage_label.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 13px;")
 
-        storage_value = QLabel("GitHub 私有仓库")
-        storage_value.setStyleSheet(f"color: {PRIMARY}; font-weight: 500; font-size: 13px;")
+        self.storage_value = QLabel()
+        self.storage_value.setStyleSheet(f"color: {PRIMARY}; font-weight: 500; font-size: 13px;")
 
         storage_layout.addWidget(storage_label)
-        storage_layout.addWidget(storage_value, 1)
+        storage_layout.addWidget(self.storage_value, 1)
         settings_layout.addLayout(storage_layout)
 
         layout.addWidget(settings_group)
@@ -215,6 +217,25 @@ class BackupTab(QWidget):
         scroll_area.setWidget(scroll_content)
         main_layout.addWidget(scroll_area)
 
+        # 初始化存储位置显示
+        self._update_storage_display()
+
+    def _update_storage_display(self):
+        """更新存储位置显示"""
+        storage_type = self.config.get("storage.type", "github")
+
+        storage_names = {
+            "github": "☁️ GitHub 私有仓库",
+            "ssh": "🖥️ SSH 服务器",
+            "local": "📁 本地存储"
+        }
+        self.storage_value.setText(storage_names.get(storage_type, "GitHub 私有仓库"))
+
+    def showEvent(self, event):
+        """页面显示时更新存储位置"""
+        super().showEvent(event)
+        self._update_storage_display()
+
     def select_all(self, checked: bool = True):
         """全选/取消全选"""
         for cb in self.checkboxes.values():
@@ -240,10 +261,14 @@ class BackupTab(QWidget):
 
     def _on_backup(self):
         """执行备份"""
-        token = self.token_manager.load_token()
-        if not token:
-            QMessageBox.warning(self, "提示", "请先登录")
-            return
+        storage_type = self.config.get("storage.type", "github")
+
+        # GitHub 存储需要登录
+        if storage_type == "github":
+            token = self.token_manager.load_token()
+            if not token:
+                QMessageBox.warning(self, "提示", "GitHub 存储需要先登录")
+                return
 
         modules = self.get_selected_modules()
         if not modules:
@@ -263,16 +288,27 @@ class BackupTab(QWidget):
                 username=username
             )
 
-            storage = GitHubStorage(token)
-            remote_name = backup_file.name
-            if storage.upload(backup_file, remote_name):
+            if storage_type == "github":
+                token = self.token_manager.load_token()
+                storage = GitHubStorage(token)
+                remote_name = backup_file.name
+                if storage.upload(backup_file, remote_name):
+                    size_kb = backup_file.stat().st_size / 1024
+                    QMessageBox.information(
+                        self, "备份成功",
+                        f"文件：{remote_name}\n大小：{size_kb:.1f} KB\n已上传到 GitHub"
+                    )
+                else:
+                    raise Exception("上传失败")
+            elif storage_type == "ssh":
+                QMessageBox.information(self, "提示", "SSH 存储功能开发中...")
+            else:
+                # 本地存储
                 size_kb = backup_file.stat().st_size / 1024
                 QMessageBox.information(
                     self, "备份成功",
-                    f"文件：{remote_name}\n大小：{size_kb:.1f} KB"
+                    f"文件：{backup_file.name}\n大小：{size_kb:.1f} KB\n已保存到本地"
                 )
-            else:
-                raise Exception("上传失败")
 
         except Exception as e:
             logger.error(f"备份失败: {e}")

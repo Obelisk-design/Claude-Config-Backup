@@ -131,18 +131,27 @@ class RestoreTab(QWidget):
         scroll_area.setWidget(scroll_content)
         main_layout.addWidget(scroll_area)
 
-        # 连接信号
-        self.local_radio.stateChanged.connect(self._on_source_changed)
-        self.cloud_radio.stateChanged.connect(self._on_source_changed)
+        # 连接信号 - 使用互斥逻辑
+        self.local_radio.toggled.connect(self._on_local_toggled)
+        self._updating = False  # 防止递归
 
-    def _on_source_changed(self):
-        """来源改变"""
-        self.local_radio.setChecked(not self.local_radio.isChecked())
-        self.cloud_radio.setChecked(not self.cloud_radio.isChecked())
-        self.backup_list.setVisible(self.cloud_radio.isChecked())
+    def _on_local_toggled(self, checked: bool):
+        """本地选项切换"""
+        if self._updating:
+            return
+        self._updating = True
 
-        if self.cloud_radio.isChecked():
+        if checked:
+            # 切换到本地模式
+            self.cloud_radio.setChecked(False)
+            self.backup_list.setVisible(False)
+        else:
+            # 切换到云端模式
+            self.cloud_radio.setChecked(True)
+            self.backup_list.setVisible(True)
             self._load_cloud_backups()
+
+        self._updating = False
 
     def _on_browse(self):
         """浏览本地文件"""

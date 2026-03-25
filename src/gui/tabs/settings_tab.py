@@ -6,15 +6,18 @@ from PyQt5.QtWidgets import (
     QLineEdit, QSpinBox, QPushButton, QGroupBox,
     QMessageBox, QRadioButton, QLabel, QScrollArea, QFrame
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 import webbrowser
 
 from utils.config import get_config
 from utils.logger import logger
+from gui.styles import PRIMARY, TEXT_PRIMARY, TEXT_MUTED
 
 
 class SettingsTab(QWidget):
     """设置 Tab 页面"""
+
+    settings_changed = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -61,12 +64,37 @@ class SettingsTab(QWidget):
         # 滚动内容
         scroll_content = QWidget()
         layout = QVBoxLayout(scroll_content)
-        layout.setContentsMargins(0, 0, 8, 0)  # 右边留出滚动条空间
+        layout.setContentsMargins(0, 0, 8, 0)
         layout.setSpacing(20)
 
-        # GitHub 配置
-        github_group = QGroupBox("GitHub OAuth 配置")
-        github_layout = QFormLayout(github_group)
+        # ===== 存储类型 (放最前面) =====
+        storage_group = QGroupBox("存储类型")
+        storage_layout = QVBoxLayout(storage_group)
+        storage_layout.setSpacing(12)
+
+        self.github_radio = QRadioButton("☁️ GitHub 私有仓库（推荐）")
+        self.github_radio.setChecked(True)
+        self.github_radio.toggled.connect(self._on_storage_changed)
+        storage_layout.addWidget(self.github_radio)
+
+        self.ssh_radio = QRadioButton("🖥️ SSH 服务器上传")
+        self.ssh_radio.toggled.connect(self._on_storage_changed)
+        storage_layout.addWidget(self.ssh_radio)
+
+        self.local_radio = QRadioButton("📁 仅本地存储")
+        self.local_radio.toggled.connect(self._on_storage_changed)
+        storage_layout.addWidget(self.local_radio)
+
+        # 存储类型说明
+        self.storage_hint = QLabel()
+        self.storage_hint.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 12px; padding: 8px 0;")
+        storage_layout.addWidget(self.storage_hint)
+
+        layout.addWidget(storage_group)
+
+        # ===== GitHub OAuth 配置 =====
+        self.github_group = QGroupBox("GitHub OAuth 配置")
+        github_layout = QFormLayout(self.github_group)
         github_layout.setSpacing(16)
         github_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
@@ -92,11 +120,11 @@ class SettingsTab(QWidget):
         help_btn.clicked.connect(self._open_github_oauth_help)
         github_layout.addRow("", help_btn)
 
-        layout.addWidget(github_group)
+        layout.addWidget(self.github_group)
 
-        # SSH 服务器配置
-        ssh_group = QGroupBox("SSH 服务器配置")
-        ssh_layout = QFormLayout(ssh_group)
+        # ===== SSH 服务器配置 =====
+        self.ssh_group = QGroupBox("SSH 服务器配置")
+        ssh_layout = QFormLayout(self.ssh_group)
         ssh_layout.setSpacing(16)
         ssh_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
@@ -126,26 +154,26 @@ class SettingsTab(QWidget):
         test_btn.clicked.connect(self._test_ssh_connection)
         ssh_layout.addRow("", test_btn)
 
-        layout.addWidget(ssh_group)
+        self.ssh_group.setVisible(False)
+        layout.addWidget(self.ssh_group)
 
-        # 存储类型
-        storage_group = QGroupBox("存储类型")
-        storage_layout = QVBoxLayout(storage_group)
-        storage_layout.setSpacing(8)
+        # ===== 本地存储配置 =====
+        self.local_group = QGroupBox("本地存储配置")
+        local_layout = QVBoxLayout(self.local_group)
+        local_layout.setSpacing(12)
 
-        self.github_radio = QRadioButton("☁️ GitHub 私有仓库（推荐）")
-        self.github_radio.setChecked(True)
-        storage_layout.addWidget(self.github_radio)
+        local_hint = QLabel("备份文件将保存到本地目录，无需网络连接。")
+        local_hint.setStyleSheet(f"color: {TEXT_MUTED}; font-size: 13px;")
+        local_layout.addWidget(local_hint)
 
-        self.ssh_radio = QRadioButton("🖥️ SSH 服务器上传")
-        storage_layout.addWidget(self.ssh_radio)
+        self.local_path_label = QLabel("备份保存位置：用户文档目录/ClaudeBackups/")
+        self.local_path_label.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 13px;")
+        local_layout.addWidget(self.local_path_label)
 
-        self.local_radio = QRadioButton("📁 仅本地存储")
-        storage_layout.addWidget(self.local_radio)
+        self.local_group.setVisible(False)
+        layout.addWidget(self.local_group)
 
-        layout.addWidget(storage_group)
-
-        # 保存按钮
+        # ===== 保存按钮 =====
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
 
@@ -163,6 +191,30 @@ class SettingsTab(QWidget):
         scroll_area.setWidget(scroll_content)
         main_layout.addWidget(scroll_area)
 
+        # 初始化显示
+        self._update_storage_ui()
+
+    def _on_storage_changed(self):
+        """存储类型改变"""
+        self._update_storage_ui()
+
+    def _update_storage_ui(self):
+        """根据存储类型更新 UI"""
+        # 隐藏所有配置组
+        self.github_group.setVisible(False)
+        self.ssh_group.setVisible(False)
+        self.local_group.setVisible(False)
+
+        if self.github_radio.isChecked():
+            self.github_group.setVisible(True)
+            self.storage_hint.setText("💡 需要 GitHub 账号和 OAuth 配置，支持云端同步")
+        elif self.ssh_radio.isChecked():
+            self.ssh_group.setVisible(True)
+            self.storage_hint.setText("💡 需要 SSH 服务器配置，适合私有部署")
+        else:
+            self.local_group.setVisible(True)
+            self.storage_hint.setText("💡 备份保存到本地，无需网络，无云端同步")
+
     def _load_settings(self):
         """加载设置"""
         self.client_id.setText(self.config.get("github.client_id", ""))
@@ -172,6 +224,17 @@ class SettingsTab(QWidget):
         self.ssh_port.setValue(self.config.get("ssh.port", 22))
         self.ssh_user.setText(self.config.get("ssh.user", ""))
 
+        # 加载存储类型
+        storage_type = self.config.get("storage.type", "github")
+        if storage_type == "github":
+            self.github_radio.setChecked(True)
+        elif storage_type == "ssh":
+            self.ssh_radio.setChecked(True)
+        else:
+            self.local_radio.setChecked(True)
+
+        self._update_storage_ui()
+
     def _save_settings(self):
         """保存设置"""
         self.config.set("github.client_id", self.client_id.text())
@@ -180,10 +243,29 @@ class SettingsTab(QWidget):
         self.config.set("ssh.host", self.ssh_host.text())
         self.config.set("ssh.port", self.ssh_port.value())
         self.config.set("ssh.user", self.ssh_user.text())
+
+        # 保存存储类型
+        if self.github_radio.isChecked():
+            self.config.set("storage.type", "github")
+        elif self.ssh_radio.isChecked():
+            self.config.set("storage.type", "ssh")
+        else:
+            self.config.set("storage.type", "local")
+
         self.config.save()
 
         QMessageBox.information(self, "成功", "设置已保存")
         logger.info("用户设置已保存")
+        self.settings_changed.emit()
+
+    def get_storage_type(self) -> str:
+        """获取当前存储类型"""
+        if self.github_radio.isChecked():
+            return "github"
+        elif self.ssh_radio.isChecked():
+            return "ssh"
+        else:
+            return "local"
 
     def _test_ssh_connection(self):
         """测试 SSH 连接"""
@@ -221,6 +303,16 @@ class SettingsTab(QWidget):
         msg.setWindowTitle("创建 OAuth 应用指南")
         msg.setTextFormat(Qt.RichText)
         msg.setText(help_text)
+        msg.setStyleSheet("""
+            QMessageBox {
+                min-width: 500px;
+            }
+            QMessageBox QLabel {
+                min-width: 450px;
+                font-size: 13px;
+                line-height: 1.5;
+            }
+        """)
         msg.addButton("打开设置页面", QMessageBox.AcceptRole)
         msg.addButton("取消", QMessageBox.RejectRole)
 
