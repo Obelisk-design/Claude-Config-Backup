@@ -154,3 +154,42 @@ class TestSSHStorageUpload:
         with SSHStorage("host", 22, "user", "pass") as storage:
             storage.upload(str(test_file), "test.ccb")
             mock_sftp.mkdir.assert_called()
+
+
+class TestSSHStorageDownload:
+    """测试下载功能"""
+
+    @patch('storage.ssh_storage.SSHClient')
+    def test_download_success(self, mock_ssh_client, tmp_path):
+        """测试下载成功"""
+        from storage.ssh_storage import SSHStorage
+
+        mock_client = MagicMock()
+        mock_sftp = MagicMock()
+        mock_client.open_sftp.return_value = mock_sftp
+        mock_ssh_client.return_value = mock_client
+
+        dest_file = tmp_path / "downloaded.ccb"
+
+        with SSHStorage("host", 22, "user", "pass") as storage:
+            result = storage.download("backup.ccb", str(dest_file))
+            assert result is True
+            mock_sftp.get.assert_called_once()
+
+    @patch('storage.ssh_storage.SSHClient')
+    def test_download_file_not_found(self, mock_ssh_client, tmp_path):
+        """测试下载文件不存在"""
+        from storage.ssh_storage import SSHStorage
+        from core.exceptions import RestoreError
+
+        mock_client = MagicMock()
+        mock_sftp = MagicMock()
+        mock_client.open_sftp.return_value = mock_sftp
+        mock_ssh_client.return_value = mock_client
+        mock_sftp.get.side_effect = FileNotFoundError("No such file")
+
+        dest_file = tmp_path / "downloaded.ccb"
+
+        with pytest.raises(RestoreError):
+            with SSHStorage("host", 22, "user", "pass") as storage:
+                storage.download("nonexistent.ccb", str(dest_file))

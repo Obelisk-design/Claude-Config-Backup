@@ -146,7 +146,27 @@ class SSHStorage(StorageBase):
             raise BackupError(f"Upload failed: {e}")
 
     def download(self, remote_path: str, local_path: str) -> bool:
-        raise NotImplementedError("download method not implemented")
+        """从 SSH 服务器下载备份文件
+
+        Args:
+            remote_path: 远程相对路径
+            local_path: 本地保存路径
+
+        Returns:
+            bool: 下载是否成功
+
+        Raises:
+            RestoreError: 下载失败
+        """
+        try:
+            remote_full_path = self._get_remote_path(remote_path)
+            self._sftp.get(remote_full_path, local_path)
+            logger.info(f"Download successful: {remote_full_path} -> {local_path}")
+            return True
+        except FileNotFoundError as e:
+            raise RestoreError(f"Remote file not found: {remote_path}")
+        except Exception as e:
+            raise RestoreError(f"Download failed: {e}")
 
     def list_files(self, prefix: str = "") -> List[Dict[str, Any]]:
         raise NotImplementedError("list_files method not implemented")
