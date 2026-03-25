@@ -283,7 +283,7 @@ class BackupTab(QWidget):
             self.backup_btn.setText("⏳ 备份中...")
 
             backup_file = self.backup_manager.create_backup(
-                modules=modules,
+                module_ids=modules,
                 description=self.description_input.text(),
                 username=username
             )
