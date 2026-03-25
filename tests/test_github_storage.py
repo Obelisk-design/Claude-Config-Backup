@@ -2,7 +2,7 @@
 import pytest
 import sys
 import base64
-from unittest.mock import Mock, MagicMock, patch, mock_open
+from unittest.mock import Mock, patch, mock_open
 
 sys.path.insert(0, 'src')
 
@@ -174,18 +174,24 @@ class TestGitHubStorage:
         file1 = Mock()
         file1.type = "file"
         file1.path = "backups/config.json"
+        file1.size = 128
+        file1.download_url = "https://example.com/config.json"
 
         file2 = Mock()
         file2.type = "file"
         file2.path = "backups/settings.json"
+        file2.size = 256
+        file2.download_url = "https://example.com/settings.json"
 
         mock_repo.get_contents.return_value = [file1, file2]
 
         files = storage.list_files()
 
         assert len(files) == 2
-        assert "config.json" in files
-        assert "settings.json" in files
+        assert files[0]["name"] == "settings.json"
+        assert files[0]["path"] == "settings.json"
+        assert files[1]["name"] == "config.json"
+        assert files[1]["path"] == "config.json"
 
     def test_list_files_empty(self, storage, mock_repo):
         """Test listing files when directory is empty or doesn't exist"""
@@ -208,13 +214,15 @@ class TestGitHubStorage:
         file1 = Mock()
         file1.type = "file"
         file1.path = "backups/subdir/config.json"
+        file1.size = 128
+        file1.download_url = "https://example.com/subdir/config.json"
 
         mock_repo.get_contents.return_value = [file1]
 
         files = storage.list_files("subdir/")
 
         assert len(files) == 1
-        assert "subdir/config.json" in files
+        assert files[0]["path"] == "subdir/config.json"
 
     def test_delete_file(self, storage, mock_repo):
         """Test deleting a file"""

@@ -2,8 +2,7 @@
 """Storage base class for backup providers"""
 
 from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 
 class StorageBase(ABC):
@@ -42,14 +41,14 @@ class StorageBase(ABC):
         pass
 
     @abstractmethod
-    def list_files(self, prefix: str = "") -> List[str]:
+    def list_files(self, prefix: str = "") -> List[Dict[str, Any]]:
         """List files in remote storage
 
         Args:
             prefix: Optional prefix to filter files
 
         Returns:
-            List of file paths in remote storage
+            List of remote file metadata
         """
         pass
 

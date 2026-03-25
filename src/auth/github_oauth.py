@@ -109,21 +109,28 @@ class GitHubOAuth:
         logger.info(f"Generated authorization URL with state: {state}")
         return url
 
-    def exchange_code(self, code: str) -> dict:
+    def exchange_code(self, code: str) -> str:
         """使用授权码交换访问令牌
 
         Args:
             code: GitHub 返回的授权码
 
         Returns:
-            包含 access_token 等信息的字典
+            access_token 字符串
 
         Raises:
             AuthenticationError: 认证失败
         """
+        # 确保 code 是纯字符串，如果传入了 tuple (比如之前解包失败的情况残留) 则取第一个元素
+        if isinstance(code, tuple) or isinstance(code, list):
+            code = code[0]
+            
+        # 强制转换为字符串并清理
+        code = str(code).strip()
+            
         data = {
-            "client_id": self.client_id,
-            "client_secret": self.client_secret,
+            "client_id": self.client_id.strip() if self.client_id else "",
+            "client_secret": self.client_secret.strip() if self.client_secret else "",
             "code": code,
             "redirect_uri": self.redirect_uri,
         }
@@ -133,6 +140,7 @@ class GitHubOAuth:
         }
 
         try:
+            logger.info(f"Exchanging code for token with client_id: {data['client_id'][:5]}... redirect_uri: {data['redirect_uri']}")
             response = requests.post(self.TOKEN_URL, data=data, headers=headers)
             response.raise_for_status()
             result = response.json()
@@ -142,7 +150,13 @@ class GitHubOAuth:
                 raise AuthenticationError(f"OAuth error: {result.get('error_description', result['error'])}")
 
             logger.info("Successfully exchanged code for access token")
-            return result
+            
+            # 如果 access_token 不在顶层，检查是否有可能 GitHub 返回格式变化
+            if "access_token" not in result:
+                logger.error(f"Unexpected token response format: {result}")
+                raise AuthenticationError("Failed to get access token from response")
+                
+            return result.get("access_token", "")
 
         except requests.RequestException as e:
             logger.error(f"Failed to exchange code: {e}")
@@ -204,11 +218,11 @@ class GitHubOAuth:
         server_thread = threading.Thread(target=httpd.handle_request)
         server_thread.daemon = True
 
+        # 先启动服务器，再打开浏览器，避免浏览器过快重定向导致连接被拒
+        server_thread.start()
         auth_url = self.get_authorization_url()
         logger.info(f"Opening browser for OAuth authorization...")
         webbrowser.open(auth_url)
-
-        server_thread.start()
 
         if not OAuthCallbackHandler.callback_received.wait(timeout=timeout):
             httpd.server_close()

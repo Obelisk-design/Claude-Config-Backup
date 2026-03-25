@@ -2,13 +2,12 @@
 """GitHub storage implementation for backup files"""
 
 import base64
-import time
-from typing import List, Optional
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from github import Github, RateLimitExceededException
 from github.Repository import Repository
-from github.ContentFile import ContentFile
-
 from storage.base import StorageBase
 from core.exceptions import BackupError, RateLimitError, RestoreError
 from utils.logger import logger
@@ -59,8 +58,9 @@ class GitHubStorage(StorageBase):
                 self._repo = user.get_repo(self.repo_name)
                 logger.info(f"Found existing repository: {self.repo_name}")
                 return self._repo
+            except RateLimitExceededException:
+                raise
             except Exception:
-                # Repo doesn't exist, create it
                 self._repo = user.create_repo(
                     name=self.repo_name,
                     private=True,
@@ -79,6 +79,43 @@ class GitHubStorage(StorageBase):
     def _get_full_path(self, remote_path: str) -> str:
         """Get full path including backup directory"""
         return f"{self.BACKUP_DIR}/{remote_path}"
+
+    def _extract_created_at(self, file_path: str) -> Optional[str]:
+        stem = Path(file_path).stem
+        try:
+            return datetime.strptime(stem, "%Y%m%d_%H%M%S").isoformat()
+        except ValueError:
+            return None
+
+    def _build_file_metadata(self, content) -> Dict[str, Any]:
+        file_path = content.path
+        if file_path.startswith(self.BACKUP_DIR + "/"):
+            file_path = file_path[len(self.BACKUP_DIR) + 1:]
+
+        return {
+            "name": Path(file_path).name,
+            "path": file_path,
+            "size": getattr(content, "size", 0),
+            "created_at": self._extract_created_at(file_path),
+            "download_url": getattr(content, "download_url", None),
+        }
+
+    def _list_directory(self, repo: Repository, prefix: str = "") -> List[Dict[str, Any]]:
+        backup_dir = self._get_full_path(prefix).rstrip("/")
+        files: List[Dict[str, Any]] = []
+        contents = repo.get_contents(backup_dir)
+
+        if not isinstance(contents, list):
+            contents = [contents]
+
+        for content in contents:
+            if content.type == "file":
+                files.append(self._build_file_metadata(content))
+            elif content.type == "dir":
+                subdir_prefix = content.path[len(self.BACKUP_DIR) + 1:]
+                files.extend(self._list_directory(repo, subdir_prefix + "/"))
+
+        return files
 
     def upload(self, local_path: str, remote_path: str) -> bool:
         """Upload a file to the GitHub repository
@@ -105,7 +142,6 @@ class GitHubStorage(StorageBase):
             # Check if file exists
             try:
                 existing_file = repo.get_contents(full_path)
-                # Update existing file
                 repo.update_file(
                     path=full_path,
                     message=f"Update backup: {remote_path}",
@@ -113,8 +149,9 @@ class GitHubStorage(StorageBase):
                     sha=existing_file.sha
                 )
                 logger.info(f"Updated file: {full_path}")
+            except RateLimitExceededException:
+                raise
             except Exception:
-                # File doesn't exist, create it
                 repo.create_file(
                     path=full_path,
                     message=f"Create backup: {remote_path}",
@@ -173,37 +210,28 @@ class GitHubStorage(StorageBase):
             logger.error(f"Failed to download file {remote_path}: {e}")
             raise RestoreError(f"Failed to download file: {e}")
 
-    def list_files(self, prefix: str = "") -> List[str]:
+    def list_files(self, prefix: str = "") -> List[Dict[str, Any]]:
         """List backup files in the repository
 
         Args:
             prefix: Optional prefix to filter files
 
         Returns:
-            List of file paths in remote storage
+            List of remote file metadata
         """
         try:
             repo = self.get_or_create_repo()
-            backup_dir = self._get_full_path(prefix).rstrip('/')
-
-            files = []
             try:
-                contents = repo.get_contents(backup_dir)
-
-                for content in contents:
-                    if content.type == "file":
-                        # Remove backup directory prefix from path
-                        file_path = content.path
-                        if file_path.startswith(self.BACKUP_DIR + "/"):
-                            file_path = file_path[len(self.BACKUP_DIR) + 1:]
-                        files.append(file_path)
-                    elif content.type == "dir":
-                        # Recursively list files in subdirectories
-                        subdir_prefix = content.path[len(self.BACKUP_DIR) + 1:]
-                        files.extend(self.list_files(subdir_prefix + "/"))
+                files = self._list_directory(repo, prefix)
+            except RateLimitExceededException:
+                raise
             except Exception:
-                # Directory might not exist yet
-                pass
+                files = []
+
+            files.sort(
+                key=lambda item: item.get("created_at") or item["name"],
+                reverse=True
+            )
 
             logger.info(f"Listed {len(files)} files with prefix '{prefix}'")
             return files

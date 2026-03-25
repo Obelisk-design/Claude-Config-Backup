@@ -4,8 +4,8 @@
 from pathlib import Path
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QLabel, QListWidget, QFileDialog, QMessageBox,
-    QCheckBox, QGroupBox, QScrollArea, QFrame
+    QLabel, QListWidget, QListWidgetItem, QFileDialog, QMessageBox,
+    QCheckBox, QGroupBox, QScrollArea, QFrame, QRadioButton
 )
 from PyQt5.QtCore import Qt
 
@@ -25,6 +25,7 @@ class RestoreTab(QWidget):
         self.token_manager = TokenManager()
         self.storage = None
         self.selected_file = None
+        self.selected_cloud_file = None
 
         self._init_ui()
 
@@ -75,20 +76,20 @@ class RestoreTab(QWidget):
         source_layout = QVBoxLayout(source_group)
         source_layout.setSpacing(12)
 
-        self.local_radio = QCheckBox("本地文件")
+        self.local_radio = QRadioButton("本地文件")
         self.local_radio.setChecked(True)
         source_layout.addWidget(self.local_radio)
 
         browse_layout = QHBoxLayout()
         self.file_path_label = QLabel("未选择文件")
         browse_layout.addWidget(self.file_path_label)
-        browse_btn = QPushButton("浏览...")
-        browse_btn.setProperty("secondary", True)
-        browse_btn.clicked.connect(self._on_browse)
-        browse_layout.addWidget(browse_btn)
+        self.browse_btn = QPushButton("浏览...")
+        self.browse_btn.setProperty("secondary", True)
+        self.browse_btn.clicked.connect(self._on_browse)
+        browse_layout.addWidget(self.browse_btn)
         source_layout.addLayout(browse_layout)
 
-        self.cloud_radio = QCheckBox("云端备份（需登录）")
+        self.cloud_radio = QRadioButton("云端备份（需登录）")
         source_layout.addWidget(self.cloud_radio)
 
         layout.addWidget(source_group)
@@ -97,7 +98,22 @@ class RestoreTab(QWidget):
         self.backup_list = QListWidget()
         self.backup_list.setVisible(False)
         self.backup_list.setMinimumHeight(150)
+        self.backup_list.itemSelectionChanged.connect(self._on_cloud_selection_changed)
         layout.addWidget(self.backup_list)
+
+        # 登录提示区域
+        self.login_hint_widget = QWidget()
+        login_hint_layout = QVBoxLayout(self.login_hint_widget)
+        login_hint_layout.setAlignment(Qt.AlignCenter)
+        login_hint_label = QLabel("需要登录 GitHub 以查看云端备份")
+        login_hint_label.setStyleSheet(f"color: #7d8590; font-size: 13px;")
+        login_hint_btn = QPushButton("前往登录")
+        login_hint_btn.setProperty("primary", True)
+        login_hint_btn.clicked.connect(self._go_to_login)
+        login_hint_layout.addWidget(login_hint_label, alignment=Qt.AlignCenter)
+        login_hint_layout.addWidget(login_hint_btn, alignment=Qt.AlignCenter)
+        self.login_hint_widget.setVisible(False)
+        layout.addWidget(self.login_hint_widget)
 
         # 恢复选项
         options_group = QGroupBox("恢复选项")
@@ -131,27 +147,41 @@ class RestoreTab(QWidget):
         scroll_area.setWidget(scroll_content)
         main_layout.addWidget(scroll_area)
 
-        # 连接信号 - 使用互斥逻辑
-        self.local_radio.toggled.connect(self._on_local_toggled)
-        self._updating = False  # 防止递归
+        self.local_radio.toggled.connect(self._on_source_changed)
+        self.cloud_radio.toggled.connect(self._on_source_changed)
+        self._refresh_source_ui()
 
-    def _on_local_toggled(self, checked: bool):
-        """本地选项切换"""
-        if self._updating:
-            return
-        self._updating = True
+    def _on_source_changed(self):
+        """来源切换"""
+        self._refresh_source_ui()
 
-        if checked:
-            # 切换到本地模式
-            self.cloud_radio.setChecked(False)
-            self.backup_list.setVisible(False)
-        else:
-            # 切换到云端模式
-            self.cloud_radio.setChecked(True)
-            self.backup_list.setVisible(True)
+        if self.cloud_radio.isChecked():
             self._load_cloud_backups()
 
-        self._updating = False
+    def _refresh_source_ui(self):
+        """刷新来源 UI"""
+        is_local = self.local_radio.isChecked()
+        is_logged_in = self.token_manager.is_logged_in()
+
+        self.backup_list.setVisible(not is_local and is_logged_in)
+        self.login_hint_widget.setVisible(not is_local and not is_logged_in)
+
+        self.file_path_label.setVisible(is_local)
+        self.browse_btn.setVisible(is_local)
+
+    def _go_to_login(self):
+        """跳转到登录"""
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, '_on_login_click'):
+                parent._on_login_click()
+                break
+            parent = parent.parent()
+
+    def _on_cloud_selection_changed(self):
+        """更新云端备份选择"""
+        item = self.backup_list.currentItem()
+        self.selected_cloud_file = item.data(Qt.UserRole) if item else None
 
     def _on_browse(self):
         """浏览本地文件"""
@@ -170,29 +200,65 @@ class RestoreTab(QWidget):
         """加载云端备份列表"""
         token = self.token_manager.load_token()
         if not token:
-            QMessageBox.warning(self, "提示", "请先登录")
+            self._refresh_source_ui()
             return
 
         self.storage = GitHubStorage(token)
         files = self.storage.list_files()
 
         self.backup_list.clear()
+        self.selected_cloud_file = None
+
         for f in files:
-            self.backup_list.addItem(f"{f['name']} ({f['size'] / 1024:.1f} KB)")
+            item = QListWidgetItem(
+                f"{f['name']} · {f['size'] / 1024:.1f} KB"
+            )
+            item.setData(Qt.UserRole, f)
+            self.backup_list.addItem(item)
 
-    def _on_restore(self):
-        """执行恢复"""
-        # 获取备份文件
-        backup_file = None
+        if self.backup_list.count() > 0:
+            self.backup_list.setCurrentRow(0)
+        else:
+            QMessageBox.information(self, "提示", "当前云端还没有可恢复的备份")
 
+    def select_cloud_backup(self, backup_file: dict):
+        """从其他页面预选云端备份"""
+        self.cloud_radio.setChecked(True)
+        self._load_cloud_backups()
+
+        for index in range(self.backup_list.count()):
+            item = self.backup_list.item(index)
+            metadata = item.data(Qt.UserRole) or {}
+            if metadata.get("path") == backup_file.get("path"):
+                self.backup_list.setCurrentRow(index)
+                break
+
+    def _resolve_backup_file(self):
+        """解析当前选择的备份文件"""
         if self.local_radio.isChecked():
             if not self.selected_file:
                 QMessageBox.warning(self, "提示", "请选择备份文件")
-                return
-            backup_file = Path(self.selected_file)
+                return None, None
+            return Path(self.selected_file), None
 
-        # 执行恢复
+        if not self.selected_cloud_file:
+            QMessageBox.warning(self, "提示", "请选择云端备份")
+            return None, None
+
+        cache_path = self.restore_manager.cache_dir / self.selected_cloud_file["name"]
+        self.storage.download(self.selected_cloud_file["path"], cache_path)
+        return cache_path, cache_path
+
+    def _on_restore(self):
+        """执行恢复"""
+        backup_file = None
+        cleanup_path = None
+
         try:
+            backup_file, cleanup_path = self._resolve_backup_file()
+            if not backup_file:
+                return
+
             self.restore_btn.setEnabled(False)
             self.restore_btn.setText("⏳ 恢复中...")
 
@@ -216,5 +282,7 @@ class RestoreTab(QWidget):
             QMessageBox.critical(self, "错误", f"恢复失败：{str(e)}")
 
         finally:
+            if cleanup_path and cleanup_path.exists():
+                cleanup_path.unlink(missing_ok=True)
             self.restore_btn.setEnabled(True)
             self.restore_btn.setText("🔄 开始恢复")

@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """历史 Tab"""
 
+from datetime import datetime
+from pathlib import Path
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QFrame,
-    QLabel, QMessageBox, QStackedWidget, QGroupBox
+    QLabel, QMessageBox, QStackedWidget, QFileDialog
 )
 from PyQt5.QtCore import Qt
 
@@ -57,11 +59,13 @@ class EmptyStateWidget(QFrame):
 class HistoryTab(QWidget):
     """历史 Tab 页面"""
 
-    def __init__(self):
+    def __init__(self, open_backup_page=None, open_restore_page=None):
         super().__init__()
 
         self.token_manager = TokenManager()
         self.storage = None
+        self.open_backup_page = open_backup_page
+        self.open_restore_page = open_restore_page
 
         self._init_ui()
 
@@ -96,6 +100,15 @@ class HistoryTab(QWidget):
         )
         self.stack.addWidget(self.empty_state)
 
+        self.login_state = EmptyStateWidget(
+            icon="🔐",
+            title="请先登录 GitHub",
+            description="历史记录仅显示云端备份，登录后即可查看、下载和删除已有备份",
+            button_text="前往登录",
+            button_callback=self._go_to_login
+        )
+        self.stack.addWidget(self.login_state)
+
         # 加载状态页面
         self.loading_state = QWidget()
         loading_layout = QVBoxLayout(self.loading_state)
@@ -125,16 +138,22 @@ class HistoryTab(QWidget):
         self.stack.setCurrentWidget(self.empty_state)
         layout.addWidget(self.stack)
 
-    def showEvent(self, event):
-        """页面显示时加载数据"""
-        super().showEvent(event)
-        self._load_backups()
+    def _format_created_at(self, created_at: str) -> str:
+        """格式化创建时间"""
+        if not created_at:
+            return "-"
+
+        try:
+            return datetime.fromisoformat(created_at).strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return created_at
 
     def _load_backups(self):
         """加载备份列表"""
         token = self.token_manager.load_token()
         if not token:
-            self.stack.setCurrentWidget(self.empty_state)
+            self.table.setRowCount(0)
+            self.stack.setCurrentWidget(self.login_state)
             return
 
         # 显示加载状态
@@ -155,7 +174,7 @@ class HistoryTab(QWidget):
                 for row, f in enumerate(files):
                     self.table.setItem(row, 0, QTableWidgetItem(f["name"]))
                     self.table.setItem(row, 1, QTableWidgetItem(f"{f['size'] / 1024:.1f} KB"))
-                    self.table.setItem(row, 2, QTableWidgetItem("-"))
+                    self.table.setItem(row, 2, QTableWidgetItem(self._format_created_at(f.get("created_at"))))
 
                     # 操作按钮
                     btn_widget = QWidget()
@@ -165,16 +184,17 @@ class HistoryTab(QWidget):
 
                     restore_btn = QPushButton("恢复")
                     restore_btn.setProperty("secondary", True)
-                    restore_btn.clicked.connect(lambda checked, name=f["name"]: self._restore(name))
+                    restore_btn.clicked.connect(lambda checked, backup=f: self._restore(backup))
                     btn_layout.addWidget(restore_btn)
 
                     download_btn = QPushButton("下载")
                     download_btn.setProperty("secondary", True)
+                    download_btn.clicked.connect(lambda checked, backup=f: self._download(backup))
                     btn_layout.addWidget(download_btn)
 
                     delete_btn = QPushButton("删除")
                     delete_btn.setProperty("danger", True)
-                    delete_btn.clicked.connect(lambda checked, name=f["name"]: self._delete(name))
+                    delete_btn.clicked.connect(lambda checked, backup=f: self._delete(backup))
                     btn_layout.addWidget(delete_btn)
 
                     self.table.setCellWidget(row, 3, btn_widget)
@@ -189,26 +209,63 @@ class HistoryTab(QWidget):
             self.refresh_btn.setEnabled(True)
             self.refresh_btn.setText("🔄 刷新")
 
-    def _restore(self, filename: str):
+    def _restore(self, backup_file: dict):
         """恢复指定备份"""
-        QMessageBox.information(self, "提示", f"即将恢复备份：{filename}")
+        if self.open_restore_page:
+            self.open_restore_page(backup_file)
+            return
 
-    def _delete(self, filename: str):
+        QMessageBox.information(self, "提示", f"请前往恢复页面选择备份：{backup_file['name']}")
+
+    def _download(self, backup_file: dict):
+        """下载指定备份"""
+        if not self.storage:
+            QMessageBox.warning(self, "提示", "请先刷新备份列表")
+            return
+
+        default_path = str(Path.home() / "Downloads" / backup_file["name"])
+        save_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "下载备份文件",
+            default_path,
+            "Claude Backup Files (*.ccb)"
+        )
+
+        if not save_path:
+            return
+
+        try:
+            self.storage.download(backup_file["path"], save_path)
+            QMessageBox.information(self, "下载成功", f"备份已保存到：\n{save_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "下载失败", f"无法下载备份：{str(e)}")
+
+    def _delete(self, backup_file: dict):
         """删除指定备份"""
         reply = QMessageBox.question(
             self, "确认删除",
-            f"确定要删除备份 {filename} 吗？\n此操作不可撤销。",
+            f"确定要删除备份 {backup_file['name']} 吗？\n此操作不可撤销。",
             QMessageBox.Yes | QMessageBox.No
         )
         if reply == QMessageBox.Yes:
-            QMessageBox.information(self, "提示", "删除功能开发中...")
+            try:
+                self.storage.delete(backup_file["path"])
+                QMessageBox.information(self, "删除成功", f"已删除备份：{backup_file['name']}")
+                self._load_backups()
+            except Exception as e:
+                QMessageBox.critical(self, "删除失败", f"无法删除备份：{str(e)}")
+
+    def _go_to_login(self):
+        """跳转到登录"""
+        # 获取主窗口并触发登录
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, '_on_login_click'):
+                parent._on_login_click()
+                break
+            parent = parent.parent()
 
     def _go_to_backup(self):
         """跳转到备份页面"""
-        # 获取主窗口并切换到备份 Tab
-        parent = self.parent()
-        while parent:
-            if hasattr(parent, 'tab_widget'):
-                parent.tab_widget.setCurrentIndex(0)
-                break
-            parent = parent.parent()
+        if self.open_backup_page:
+            self.open_backup_page()

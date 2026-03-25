@@ -103,7 +103,10 @@ class MainWindow(QMainWindow):
         # 创建各页面
         self.backup_tab = BackupTab()
         self.restore_tab = RestoreTab()
-        self.history_tab = HistoryTab()
+        self.history_tab = HistoryTab(
+            open_backup_page=self._open_backup_page,
+            open_restore_page=self._open_restore_page
+        )
         self.settings_tab = SettingsTab()
 
         # 连接设置变化信号
@@ -130,6 +133,18 @@ class MainWindow(QMainWindow):
         if index == 2:
             self.history_tab._load_backups()
 
+    def _open_backup_page(self):
+        """打开备份页面"""
+        self.sidebar.set_current_page(0)
+        self.stack.setCurrentIndex(0)
+
+    def _open_restore_page(self, backup_file: dict = None):
+        """打开恢复页面"""
+        self.sidebar.set_current_page(1)
+        self.stack.setCurrentIndex(1)
+        if backup_file:
+            self.restore_tab.select_cloud_backup(backup_file)
+
     def _on_settings_changed(self):
         """设置变化"""
         # 刷新侧边栏登录显示
@@ -142,7 +157,11 @@ class MainWindow(QMainWindow):
         if self.token_manager.is_logged_in():
             user_info = self.token_manager.load_user_info()
             if user_info:
-                self._update_user_info(user_info)
+                # 只更新UI和发出信号，不触发额外的 _on_login_state_changed (避免循环或重复刷新)
+                self.user_info = user_info
+                username = user_info.get("login", "User")
+                self.sidebar.update_user_info(username)
+                self.login_success.emit(user_info)
 
     def _update_user_info(self, user_info: dict):
         """更新用户信息显示"""
@@ -150,6 +169,7 @@ class MainWindow(QMainWindow):
         username = user_info.get("login", "User")
         self.sidebar.update_user_info(username)
         self.login_success.emit(user_info)
+        self._on_login_state_changed()
 
     def _on_login_click(self):
         """点击登录"""
@@ -173,3 +193,20 @@ class MainWindow(QMainWindow):
             self.user_info = None
             self.sidebar.update_user_info(None)
             self.logout_success.emit()
+            self._on_login_state_changed()
+
+    def _on_login_state_changed(self):
+        """登录状态改变时刷新当前标签页"""
+        # 刷新侧边栏登录显示
+        self.sidebar.refresh_storage_type()
+        # 刷新备份页面存储位置
+        if hasattr(self, 'backup_tab'):
+            self.backup_tab._update_storage_display()
+
+        current_widget = self.stack.currentWidget()
+        if hasattr(current_widget, 'load_history'):
+            current_widget.load_history()
+        elif hasattr(current_widget, '_load_cloud_backups'):
+            current_widget._load_cloud_backups()
+        elif hasattr(current_widget, '_refresh_source_ui'):
+            current_widget._refresh_source_ui()

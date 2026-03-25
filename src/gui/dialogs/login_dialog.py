@@ -26,10 +26,12 @@ class LoginThread(QThread):
     def run(self):
         try:
             # 获取授权码
-            code = self.oauth.start_callback_server(timeout=300)
-            if not code:
+            result = self.oauth.start_callback_server(timeout=300)
+            if not result:
                 self.error.emit("授权超时")
                 return
+                
+            code, state = result
 
             # 换取 token
             token = self.oauth.exchange_code(code)
@@ -97,27 +99,16 @@ class LoginDialog(QDialog):
         """开始登录流程"""
         config = get_config()
 
-        client_id = config.get("github.client_id")
-        client_secret = config.get("github.client_secret")
+        # 优先使用配置中的密钥，如果未配置则使用默认的内置 OAuth App 凭证
+        client_id = config.get("github.client_id") or "Iv23li4zWtSAxhLjjEJb"
+        client_secret = config.get("github.client_secret") or "6502c846a2ddaf23946644c1e883017969caa0b3"
         redirect_port = config.get("github.redirect_port", 18080)
-
-        if not client_id or not client_secret:
-            QMessageBox.warning(
-                self,
-                "配置错误",
-                "请先配置 GitHub Client ID 和 Secret"
-            )
-            return
 
         self.oauth = GitHubOAuth(
             client_id=client_id,
             client_secret=client_secret,
             redirect_port=redirect_port
         )
-
-        # 打开浏览器
-        auth_url = self.oauth.get_authorization_url()
-        webbrowser.open(auth_url)
 
         # 启动登录线程
         self.progress.setVisible(True)
@@ -156,7 +147,30 @@ class LoginDialog(QDialog):
         self.login_btn.setEnabled(True)
         self.status_label.setText("")
 
-        QMessageBox.critical(self, "登录失败", error)
+        # 翻译常见的生硬错误为用户友好文案
+        user_friendly_error = error
+        if "bad verification code" in error.lower() or "code passed is incorrect" in error.lower():
+            user_friendly_error = "授权码已失效或不正确，请重新点击登录进行授权。"
+        elif "timed out" in error.lower():
+            user_friendly_error = "等待浏览器授权超时，请重试并在浏览器中尽快确认。"
+        elif "connection" in error.lower() or "network" in error.lower():
+            user_friendly_error = "网络连接失败，请检查您的网络或代理设置。"
+        elif "token" in error.lower():
+            user_friendly_error = "获取访问令牌失败，可能是授权已被取消，请重试。"
+
+        msg_box = QMessageBox(self)
+        msg_box.setIcon(QMessageBox.Critical)
+        msg_box.setWindowTitle("登录失败")
+        msg_box.setText("GitHub 授权过程中发生错误：")
+        msg_box.setInformativeText(user_friendly_error)
+        
+        # 将原始错误信息放在详细信息里供折叠查看
+        if user_friendly_error != error:
+            msg_box.setDetailedText(f"原始错误信息:\n{error}")
+            
+        msg_box.setMinimumWidth(400)
+        msg_box.setStyleSheet("QLabel{min-width: 300px;}") # 强制拉宽
+        msg_box.exec_()
 
     def get_user_info(self) -> dict:
         """获取用户信息"""

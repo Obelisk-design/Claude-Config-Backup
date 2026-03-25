@@ -52,16 +52,19 @@ class TestGitHubOAuth:
 
         result = oauth.exchange_code("test_code")
 
-        assert result["access_token"] == "test_access_token"
-        assert result["token_type"] == "bearer"
+        assert result == "test_access_token"
 
         # 验证调用参数
-        mock_post.assert_called_once()
-        call_args = mock_post.call_args
-        assert "https://github.com/login/oauth/access_token" in str(call_args[0])
-        assert call_args[1]["data"]["client_id"] == "test_client_id"
-        assert call_args[1]["data"]["client_secret"] == "test_client_secret"
-        assert call_args[1]["data"]["code"] == "test_code"
+        mock_post.assert_called_once_with(
+            oauth.TOKEN_URL,
+            data={
+                "client_id": "test_client_id",
+                "client_secret": "test_client_secret",
+                "code": "test_code",
+                "redirect_uri": oauth.redirect_uri,
+            },
+            headers={"Accept": "application/json"}
+        )
 
     @patch('requests.post')
     def test_exchange_code_error(self, mock_post, oauth):
