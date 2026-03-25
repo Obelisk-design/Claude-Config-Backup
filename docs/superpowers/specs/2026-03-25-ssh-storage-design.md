@@ -119,9 +119,20 @@ def _get_remote_path(self, path: str) -> str:
     """获取完整远程路径"""
     return f"{self.BACKUP_DIR}/{path}"
 
+def _ensure_backup_dir(self):
+    """确保服务器备份目录存在"""
+    try:
+        self._sftp.stat(self.BACKUP_DIR)
+    except FileNotFoundError:
+        self._sftp.mkdir(self.BACKUP_DIR)
+    except Exception:
+        # 忽略其他错误（如权限问题），上传时会失败并报错
+        pass
+
 def _connect(self):
     """建立 SSH/SFTP 连接（带重试）"""
     import time
+    import paramiko
     last_error = None
 
     for attempt in range(self.MAX_RETRIES):
@@ -142,14 +153,15 @@ def _connect(self):
             )
             self._sftp = self._client.open_sftp()
             return
+        except paramiko.AuthenticationException as e:
+            # 认证失败不重试
+            raise AuthenticationError(f"SSH authentication failed: {e}")
         except Exception as e:
             last_error = e
             if attempt < self.MAX_RETRIES - 1:
+                # 线性退避：2s, 4s, 6s
                 time.sleep(self.RETRY_DELAY * (attempt + 1))
 
-    # 认证失败特殊处理
-    if "Authentication" in str(last_error):
-        raise AuthenticationError(f"SSH authentication failed: {last_error}")
     raise NetworkError(f"SSH connection failed after {self.MAX_RETRIES} retries: {last_error}")
 
 def _disconnect(self):
@@ -166,18 +178,21 @@ def _disconnect(self):
 
 ```python
 # 复用现有异常体系
+import paramiko
 from core.exceptions import BackupError, RestoreError, NetworkError, AuthenticationError
 
-# 认证失败
-if "Authentication" in str(e):
+# 认证失败（使用 paramiko 特定异常）
+except paramiko.AuthenticationException as e:
     raise AuthenticationError(f"SSH authentication failed: {e}")
 
 # 网络错误
-raise NetworkError(f"SSH connection failed: {e}")
+except (paramiko.SSHException, ConnectionError, TimeoutError) as e:
+    raise NetworkError(f"SSH connection failed: {e}")
 
 # 备份/恢复操作失败
-raise BackupError(f"Upload failed: {e}")
-raise RestoreError(f"Download failed: {e}")
+except Exception as e:
+    raise BackupError(f"Upload failed: {e}")
+    raise RestoreError(f"Download failed: {e}")
 ```
 
 **异常映射**：
@@ -285,11 +300,26 @@ elif storage_type == "ssh":
         "host": self.config.get("ssh.host"),
         "port": self.config.get("ssh.port", 22),
         "user": self.config.get("ssh.user"),
-        "password": self.config.get("ssh.password")
+        "password": self._get_ssh_password()  # 使用解密后的密码
     }
     self.worker = SSHUploadWorker(ssh_config, backup_file_path, remote_name)
     self.worker.finished.connect(...)
     self.worker.start()
+```
+
+**SSHUploadWorker 实现要点**：
+
+```python
+class SSHUploadWorker(QThread):
+    def run(self):
+        storage = SSHStorage(**self.ssh_config)
+        try:
+            with storage:  # 使用上下文管理器确保连接关闭
+                storage._ensure_backup_dir()
+                success = storage.upload(self.backup_file, self.remote_name)
+            self.finished.emit(success, "上传成功")
+        except Exception as e:
+            self.error.emit(str(e))
 ```
 
 ### 恢复/历史页面
@@ -467,7 +497,7 @@ ssh:
 
 | 风险 | 缓解措施 |
 |------|---------|
-| SSH 连接不稳定 | 重试机制（3次，指数退避）+ 超时设置（30秒） |
+| SSH 连接不稳定 | 重试机制（3次，线性退避 2s/4s/6s）+ 超时设置（30秒） |
 | 密码明文存储 | 使用 AES 加密，config 中只存储加密后密码 |
 | 大文件上传慢 | 进度显示 + 异步上传（QThread） |
 | 服务器目录不存在 | 自动创建 ~/.claude-backups/ |
