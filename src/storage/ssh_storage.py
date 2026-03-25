@@ -120,9 +120,30 @@ class SSHStorage(StorageBase):
         except Exception as e:
             logger.debug(f"Error checking backup directory: {e}")
 
-    # StorageBase 抽象方法实现（后续任务中完善）
+    # StorageBase 抽象方法实现
     def upload(self, local_path: str, remote_path: str) -> bool:
-        raise NotImplementedError("upload method not implemented")
+        """上传备份文件到 SSH 服务器
+
+        Args:
+            local_path: 本地文件路径
+            remote_path: 远程相对路径
+
+        Returns:
+            bool: 上传是否成功
+
+        Raises:
+            BackupError: 上传失败
+        """
+        try:
+            self._ensure_backup_dir()
+            remote_full_path = self._get_remote_path(remote_path)
+            self._sftp.put(local_path, remote_full_path)
+            logger.info(f"Upload successful: {local_path} -> {remote_full_path}")
+            return True
+        except FileNotFoundError as e:
+            raise BackupError(f"Local file not found: {local_path}")
+        except Exception as e:
+            raise BackupError(f"Upload failed: {e}")
 
     def download(self, remote_path: str, local_path: str) -> bool:
         raise NotImplementedError("download method not implemented")

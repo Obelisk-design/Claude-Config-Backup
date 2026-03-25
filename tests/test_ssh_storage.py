@@ -113,3 +113,44 @@ class TestSSHStorageHelpers:
         with SSHStorage("host", 22, "user", "pass") as storage:
             storage._ensure_backup_dir()
             mock_sftp.mkdir.assert_called_once_with(".claude-backups")
+
+
+class TestSSHStorageUpload:
+    """测试上传功能"""
+
+    @patch('storage.ssh_storage.SSHClient')
+    def test_upload_success(self, mock_ssh_client, tmp_path):
+        """测试上传成功"""
+        from storage.ssh_storage import SSHStorage
+
+        # 创建测试文件
+        test_file = tmp_path / "test.ccb"
+        test_file.write_text("test content")
+
+        mock_client = MagicMock()
+        mock_sftp = MagicMock()
+        mock_client.open_sftp.return_value = mock_sftp
+        mock_ssh_client.return_value = mock_client
+
+        with SSHStorage("host", 22, "user", "pass") as storage:
+            result = storage.upload(str(test_file), "test.ccb")
+            assert result is True
+            mock_sftp.put.assert_called_once()
+
+    @patch('storage.ssh_storage.SSHClient')
+    def test_upload_creates_backup_dir(self, mock_ssh_client, tmp_path):
+        """测试上传时自动创建备份目录"""
+        from storage.ssh_storage import SSHStorage
+
+        test_file = tmp_path / "test.ccb"
+        test_file.write_text("test")
+
+        mock_client = MagicMock()
+        mock_sftp = MagicMock()
+        mock_client.open_sftp.return_value = mock_sftp
+        mock_ssh_client.return_value = mock_client
+        mock_sftp.stat.side_effect = FileNotFoundError()
+
+        with SSHStorage("host", 22, "user", "pass") as storage:
+            storage.upload(str(test_file), "test.ccb")
+            mock_sftp.mkdir.assert_called()
