@@ -119,6 +119,36 @@
             z-index: 1;
         }
 
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: white;
+            color: var(--forest);
+            padding: 12px 24px;
+            border-radius: 100px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            color: var(--forest);
+            text-decoration: none;
+        }
+
         .header-badge {
             display: inline-flex;
             align-items: center;
@@ -129,7 +159,6 @@
             border-radius: 100px;
             font-size: 0.85rem;
             font-weight: 500;
-            margin-bottom: 20px;
             border: 1px solid rgba(255,255,255,0.2);
         }
 
@@ -572,6 +601,12 @@
             </div>
             <h1>Claude Config Backup</h1>
             <p>安全、便捷的 Claude Code 配置备份工具，让你的配置随身而行</p>
+            <div class="header-actions">
+                <a href="https://github.com/Obelisk-design/Claude-Config-Backup/releases/download/v1.1.0/ClaudeConfigBackup.exe" class="download-btn">
+                    <span>📥</span>
+                    <span>下载 Windows 版本</span>
+                </a>
+            </div>
         </div>
     </header>
 

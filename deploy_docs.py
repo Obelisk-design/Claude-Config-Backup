@@ -6,7 +6,7 @@ from stat import S_ISDIR
 HOST = "43.153.156.249"
 USER = "root"
 PASSWORD = "jingyang@LINUX"
-REMOTE_PATH = "/var/www/html/claude-backup"
+REMOTE_PATH = "/var/www/html/docs"
 LOCAL_PATH = "d:/CodeSpace/claudeFi/docs"
 
 def upload_dir(sftp, local_dir, remote_dir):
@@ -49,7 +49,7 @@ def main():
         sftp.close()
         ssh.close()
 
-        print(f"\n部署完成! 访问: http://{HOST}/claude-backup/")
+        print(f"\n部署完成! 访问: http://{HOST}/")
 
     except Exception as e:
         print(f"错误: {e}")
