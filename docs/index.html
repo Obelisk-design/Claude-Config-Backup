@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Config Backup - 用户手册</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+            --secondary: #0ea5e9;
+            --accent: #f59e0b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --bg-main: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-code: #1e293b;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            --border: #e2e8f0;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+            --radius: 12px;
+            --radius-lg: 16px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-main);
+            color: var(--text-primary);
+            line-height: 1.7;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 60px 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 60%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .header-content {
+            max-width: 900px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            letter-spacing: -0.02em;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .header-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255,255,255,0.2);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            margin-top: 16px;
+        }
+
+        /* Main Content */
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* Feature Cards */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin: -30px 0 40px;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 28px 24px;
+            text-align: center;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .feature-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin: 0 auto 16px;
+        }
+
+        .feature-card:nth-child(1) .feature-icon {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+
+        .feature-card:nth-child(2) .feature-icon {
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+        }
+
+        .feature-card:nth-child(3) .feature-icon {
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+        }
+
+        .feature-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .feature-card p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        /* Sections */
+        .section {
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            padding: 32px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border);
+        }
+
+        .section-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+
+        /* Steps */
+        .steps {
+            counter-reset: step;
+        }
+
+        .step {
+            position: relative;
+            padding-left: 60px;
+            margin-bottom: 24px;
+        }
+
+        .step:last-child {
+            margin-bottom: 0;
+        }
+
+        .step::before {
+            counter-increment: step;
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .step h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .step p, .step ul {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .step ul {
+            margin-left: 20px;
+            margin-top: 8px;
+        }
+
+        .step li {
+            margin-bottom: 4px;
+        }
+
+        /* Code Block */
+        .code-block {
+            background: var(--bg-code);
+            border-radius: var(--radius);
+            padding: 16px 20px;
+            margin: 16px 0;
+            overflow-x: auto;
+        }
+
+        .code-block code {
+            color: #e2e8f0;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.9rem;
+        }
+
+        /* Inline Code */
+        code {
+            background: #f1f5f9;
+            color: var(--primary-dark);
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.85em;
+        }
+
+        /* Table */
+        .table-wrapper {
+            overflow-x: auto;
+            margin: 16px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+        }
+
+        th {
+            background: #f8fafc;
+            font-weight: 600;
+            text-align: left;
+            padding: 14px 16px;
+            border-bottom: 2px solid var(--border);
+            color: var(--text-primary);
+        }
+
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: #f8fafc;
+        }
+
+        /* Alert Boxes */
+        .alert {
+            border-radius: var(--radius);
+            padding: 16px 20px;
+            margin: 16px 0;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .alert-warning {
+            background: #fef3c7;
+            border-left: 4px solid var(--warning);
+        }
+
+        .alert-tip {
+            background: #ecfdf5;
+            border-left: 4px solid var(--success);
+        }
+
+        .alert-icon {
+            font-size: 1.2rem;
+            line-height: 1;
+        }
+
+        .alert-content {
+            flex: 1;
+        }
+
+        .alert-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        /* Links */
+        a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        a:hover {
+            color: var(--primary-dark);
+            text-decoration: underline;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            border-top: 1px solid var(--border);
+            margin-top: 40px;
+        }
+
+        .footer a {
+            color: var(--text-secondary);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .features {
+                grid-template-columns: 1fr;
+                margin: -20px 0 40px;
+            }
+
+            .section {
+                padding: 24px 20px;
+            }
+
+            .step {
+                padding-left: 50px;
+            }
+
+            .step::before {
+                width: 36px;
+                height: 36px;
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <h1>Claude Config Backup</h1>
+            <p>安全、便捷的 Claude Code 配置备份工具</p>
+            <div class="header-badge">
+                <span>v1.0.0</span>
+                <span>•</span>
+                <span>Windows</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="features">
+            <div class="feature-card">
+                <div class="feature-icon">🔒</div>
+                <h3>安全备份</h3>
+                <p>敏感信息自动脱敏，保护隐私安全</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">☁️</div>
+                <h3>云端存储</h3>
+                <p>GitHub 私有仓库，数据安全可靠</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔄</div>
+                <h3>一键同步</h3>
+                <p>跨设备快速恢复，无缝切换</p>
+            </div>
+        </div>
+
+        <section class="section">
+            <h2 class="section-title">快速开始</h2>
+            <div class="steps">
+                <div class="step">
+                    <h4>创建 GitHub OAuth 应用</h4>
+                    <p>访问 GitHub 开发者设置，创建新的 OAuth 应用</p>
+                    <ul>
+                        <li><strong>Application name</strong>: Claude Config Backup</li>
+                        <li><strong>Homepage URL</strong>: <code>http://localhost:18080</code></li>
+                        <li><strong>Authorization callback URL</strong>: <code>http://localhost:18080/callback</code></li>
+                    </ul>
+                </div>
+                <div class="step">
+                    <h4>配置应用</h4>
+                    <p>启动应用后，在"设置"标签页填写 Client ID 和 Client Secret，然后点击"保存设置"</p>
+                </div>
+                <div class="step">
+                    <h4>登录 GitHub</h4>
+                    <p>点击右上角"GitHub 登录"，在浏览器中授权应用即可完成登录</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2 class="section-title">备份模块</h2>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>模块</th>
+                            <th>说明</th>
+                            <th>路径</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>核心配置</strong></td>
+                            <td>Claude Code 核心设置文件</td>
+                            <td><code>settings.json</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>技能文件</strong></td>
+                            <td>自定义技能模块</td>
+                            <td><code>~/.claude/skills/</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>自定义命令</strong></td>
+                            <td>斜杠命令定义</td>
+                            <td><code>~/.claude/commands/</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>记忆文件</strong></td>
+                            <td>Claude 记忆系统数据</td>
+                            <td><code>~/.claude/memory/</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>MCP 服务器</strong></td>
+                            <td>MCP 服务器配置</td>
+                            <td><code>~/.claude/mcp-servers/</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>工具配置</strong></td>
+                            <td>扩展工具配置</td>
+                            <td><code>~/.claude/tools/</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2 class="section-title">敏感信息处理</h2>
+            <div class="alert alert-warning">
+                <span class="alert-icon">⚠️</span>
+                <div class="alert-content">
+                    <div class="alert-title">安全提示</div>
+                    <p>备份时会自动识别并处理敏感信息，包括 API Token、密码、密钥等字段</p>
+                </div>
+            </div>
+            <p>处理方式：</p>
+            <ul style="margin-left: 20px; color: var(--text-secondary);">
+                <li><strong>脱敏</strong>：将敏感值替换为 <code>***MASKED***</code></li>
+                <li><strong>排除</strong>：某些字段完全排除（如 <code>ANTHROPIC_AUTH_TOKEN</code>）</li>
+            </ul>
+        </section>
+
+        <section class="section">
+            <h2 class="section-title">常见问题</h2>
+            <div class="steps">
+                <div class="step">
+                    <h4>登录失败怎么办？</h4>
+                    <ul>
+                        <li>检查 GitHub OAuth 应用配置是否正确</li>
+                        <li>确认回调端口（18080）未被占用</li>
+                        <li>检查网络连接是否正常</li>
+                    </ul>
+                </div>
+                <div class="step">
+                    <h4>如何在新设备恢复配置？</h4>
+                    <ul>
+                        <li>在新设备安装并配置应用</li>
+                        <li>使用同一 GitHub 账号登录</li>
+                        <li>从"历史"标签选择备份恢复</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="alert alert-tip">
+                <span class="alert-icon">💡</span>
+                <div class="alert-content">
+                    <div class="alert-title">提示</div>
+                    <p>恢复前建议勾选"备份当前配置"，以便出现问题时可以回滚</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2 class="section-title">技术支持</h2>
+            <p>
+                <strong>问题反馈</strong>：
+                <a href="https://github.com/Obelisk-design/Claude-Config-Backup/issues" target="_blank">GitHub Issues</a>
+            </p>
+            <p style="margin-top: 8px;">
+                <strong>项目主页</strong>：
+                <a href="https://github.com/Obelisk-design/Claude-Config-Backup" target="_blank">GitHub Repository</a>
+            </p>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p>© 2026 Claude Config Backup · <a href="https://github.com/Obelisk-design/Claude-Config-Backup" target="_blank">GitHub</a></p>
+    </footer>
+</body>
+</html>
