@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Config Backup - 低保真原型</title>
+    <style>
+        /* ============================================
+           CSS Variables - 森林花园调色板
+           ============================================ */
+        :root {
+            /* 主色调 */
+            --primary: #2d6a4f;
+            --primary-light: #40916c;
+            --primary-lighter: #52b788;
+            --primary-pale: #d8f3dc;
+
+            /* 语义色 */
+            --success: #2d6a4f;
+            --error: #c44536;
+            --warning: #d4a373;
+            --info: #457b9d;
+
+            /* 背景色 */
+            --bg-base: #faf8f5;
+            --bg-surface: #ffffff;
+            --bg-elevated: #f4f1eb;
+            --bg-hover: #ebe7df;
+
+            /* 文字色 */
+            --text-primary: #1b3a2f;
+            --text-secondary: #4a6c5c;
+            --text-muted: #7a9988;
+
+            /* 边框 */
+            --border-default: #e2ddd5;
+            --border-light: #ebe7df;
+            --border-focus: #40916c;
+
+            /* 尺寸 */
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 18px;
+            --input-height: 44px;
+            --button-height: 44px;
+        }
+
+        /* ============================================
+           Base Styles
+           ============================================ */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Microsoft YaHei UI", "Segoe UI", "PingFang SC", sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--text-primary);
+            background-color: var(--bg-base);
+        }
+
+        /* ============================================
+           Layout
+           ============================================ */
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 220px;
+            background-color: var(--bg-surface);
+            border-right: 1px solid var(--border-default);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-logo {
+            padding: 16px 20px;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--primary);
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 8px 0;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 20px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            font-size: 13px;
+            font-weight: 500;
+            transition: background-color 0.15s, color 0.15s;
+        }
+
+        .nav-item:hover {
+            background-color: var(--bg-elevated);
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background-color: var(--primary-pale);
+            color: var(--primary);
+            border-left: 3px solid var(--primary);
+        }
+
+        .nav-icon {
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+        }
+
+        .sidebar-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border-light);
+        }
+
+        .storage-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .storage-type {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .user-section {
+            padding: 12px 20px;
+            border-top: 1px solid var(--border-light);
+        }
+
+        .user-name {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .login-btn {
+            margin-top: 8px;
+            width: 100%;
+            padding: 10px 16px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.15s;
+        }
+
+        .login-btn:hover {
+            background-color: var(--primary-light);
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 24px 32px;
+            overflow-y: auto;
+        }
+
+        .page {
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        /* Page Header */
+        .page-header {
+            margin-bottom: 24px;
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .page-subtitle {
+            margin-top: 8px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* ============================================
+           Components
+           ============================================ */
+
+        /* Card */
+        .card {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 16px;
+        }
+
+        /* Button */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 0 24px;
+            height: var(--button-height);
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.15s;
+            min-width: 110px;
+        }
+
+        .btn:hover {
+            background-color: var(--bg-elevated);
+            border-color: var(--text-muted);
+        }
+
+        .btn:active {
+            background-color: var(--primary-lighter);
+            color: white;
+            border-color: var(--primary-lighter);
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-light);
+            border-color: var(--primary-light);
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            border-color: var(--border-default);
+            color: var(--text-secondary);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            background-color: var(--primary-pale);
+        }
+
+        .btn-danger {
+            background-color: transparent;
+            border-color: var(--error);
+            color: var(--error);
+        }
+
+        .btn-danger:hover {
+            background-color: rgba(196, 69, 54, 0.08);
+        }
+
+        .btn:disabled {
+            background-color: var(--bg-elevated);
+            color: var(--text-muted);
+            border-color: var(--border-light);
+            cursor: not-allowed;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        /* Input */
+        .input-group {
+            margin-bottom: 16px;
+        }
+
+        .input-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .input {
+            width: 100%;
+            height: var(--input-height);
+            padding: 0 16px;
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            color: var(--text-primary);
+            transition: border-color 0.15s;
+        }
+
+        .input:hover {
+            border-color: var(--text-muted);
+            background-color: var(--bg-elevated);
+        }
+
+        .input:focus {
+            outline: none;
+            border: 2px solid var(--border-focus);
+        }
+
+        .input::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* Checkbox */
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: background-color 0.15s;
+        }
+
+        .checkbox-item:hover {
+            background-color: var(--bg-elevated);
+        }
+
+        .checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-default);
+            border-radius: 6px;
+            background-color: var(--bg-surface);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            flex-shrink: 0;
+        }
+
+        .checkbox:hover {
+            border-color: var(--primary-light);
+        }
+
+        .checkbox.checked {
+            background-color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .checkbox.checked::after {
+            content: "✓";
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .checkbox-label {
+            flex: 1;
+        }
+
+        .checkbox-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .checkbox-desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .checkbox-size {
+            font-size: 12px;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        /* Radio */
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .radio-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: background-color 0.15s;
+        }
+
+        .radio-item:hover {
+            background-color: var(--bg-elevated);
+        }
+
+        .radio {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-default);
+            border-radius: 50%;
+            background-color: var(--bg-surface);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            flex-shrink: 0;
+        }
+
+        .radio:hover {
+            border-color: var(--primary-light);
+        }
+
+        .radio.checked {
+            border: 5px solid var(--primary);
+            background-color: var(--bg-surface);
+        }
+
+        .radio-label {
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+
+        /* Table */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th,
+        .table td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .table th {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .table td {
+            font-size: 13px;
+            color: var(--text-primary);
+        }
+
+        .table tbody tr:hover {
+            background-color: var(--bg-elevated);
+        }
+
+        .table-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .table-actions .btn {
+            min-width: auto;
+            padding: 6px 12px;
+            height: 32px;
+            font-size: 12px;
+        }
+
+        /* Progress */
+        .progress-bar {
+            height: 12px;
+            background-color: var(--bg-elevated);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-light), var(--primary-lighter));
+            border-radius: 6px;
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            margin-top: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        .toast {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            padding: 14px 20px;
+            margin-bottom: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideIn 0.3s ease-out;
+            min-width: 300px;
+        }
+
+        .toast.success {
+            border-left: 4px solid var(--success);
+        }
+
+        .toast.error {
+            border-left: 4px solid var(--error);
+        }
+
+        .toast-icon {
+            font-size: 18px;
+        }
+
+        .toast-message {
+            font-size: 13px;
+            color: var(--text-primary);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .empty-icon {
+            font-size: 52px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .empty-title {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .empty-desc {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background-color: var(--bg-surface);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            width: 90%;
+            max-width: 500px;
+            transform: scale(0.9);
+            transition: transform 0.2s;
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1);
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+        }
+
+        .modal-content {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        /* Settings */
+        .settings-section {
+            margin-bottom: 32px;
+        }
+
+        .settings-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .settings-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+        }
+
+        .settings-label {
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+
+        .settings-value {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        /* Grid */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        /* Select */
+        .select {
+            width: 100%;
+            height: var(--input-height);
+            padding: 0 16px;
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            color: var(--text-primary);
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234a6c5c' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+        }
+
+        .select:hover {
+            border-color: var(--text-muted);
+            background-color: var(--bg-elevated);
+        }
+
+        .select:focus {
+            outline: none;
+            border: 2px solid var(--border-focus);
+        }
+
+        /* Divider */
+        .divider {
+            height: 1px;
+            background-color: var(--border-light);
+            margin: 20px 0;
+        }
+
+        /* Tag */
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            background-color: var(--primary-pale);
+            color: var(--primary);
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        /* Loading */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
+        }
+
+        .loading-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border-default);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .loading-text {
+            margin-top: 16px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-logo">🌿 Claude Config Backup</div>
+
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-page="backup">
+                    <span class="nav-icon">📦</span>
+                    <span>备份</span>
+                </button>
+                <button class="nav-item" data-page="restore">
+                    <span class="nav-icon">📥</span>
+                    <span>恢复</span>
+                </button>
+                <button class="nav-item" data-page="history">
+                    <span class="nav-icon">📋</span>
+                    <span>历史</span>
+                </button>
+                <button class="nav-item" data-page="settings">
+                    <span class="nav-icon">⚙️</span>
+                    <span>设置</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="storage-label">存储位置</div>
+                <div class="storage-type">GitHub 私有仓库</div>
+            </div>
+
+            <div class="user-section">
+                <div class="user-name">未登录</div>
+                <button class="login-btn" id="loginBtn">GitHub 登录</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Backup Page -->
+            <div class="page active" id="page-backup">
+                <div class="page-header">
+                    <h1 class="page-title">创建备份</h1>
+                    <p class="page-subtitle">选择需要备份的配置模块，一键完成备份</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">模块选择</div>
+                    <div class="checkbox-group" id="moduleList">
+                        <label class="checkbox-item">
+                            <div class="checkbox checked" onclick="toggleCheckbox(this)"></div>
+                            <div class="checkbox-label">
+                                <div class="checkbox-title">⚙️ 核心配置</div>
+                                <div class="checkbox-desc">settings.json, config.json 等核心配置文件</div>
+                            </div>
+                            <div class="checkbox-size">45 KB</div>
+                        </label>
+                        <label class="checkbox-item">
+                            <div class="checkbox checked" onclick="toggleCheckbox(this)"></div>
+                            <div class="checkbox-label">
+                                <div class="checkbox-title">🎯 技能文件</div>
+                                <div class="checkbox-desc">自定义技能文件</div>
+                            </div>
+                            <div class="checkbox-size">128 KB</div>
+                        </label>
+                        <label class="checkbox-item">
+                            <div class="checkbox checked" onclick="toggleCheckbox(this)"></div>
+                            <div class="checkbox-label">
+                                <div class="checkbox-title">💬 自定义命令</div>
+                                <div class="checkbox-desc">自定义斜杠命令</div>
+                            </div>
+                            <div class="checkbox-size">32 KB</div>
+                        </label>
+                        <label class="checkbox-item">
+                            <div class="checkbox checked" onclick="toggleCheckbox(this)"></div>
+                            <div class="checkbox-label">
+                                <div class="checkbox-title">🧠 记忆文件</div>
+                                <div class="checkbox-desc">Claude 记忆系统文件</div>
+                            </div>
+                            <div class="checkbox-size">16 KB</div>
+                        </label>
+                        <label class="checkbox-item">
+                            <div class="checkbox checked" onclick="toggleCheckbox(this)"></div>
+                            <div class="checkbox-label">
+                                <div class="checkbox-title">🔌 MCP 服务器</div>
+                                <div class="checkbox-desc">MCP 服务器配置和脚本</div>
+                            </div>
+                            <div class="checkbox-size">256 KB</div>
+                        </label>
+                        <label class="checkbox-item">
+                            <div class="checkbox checked" onclick="toggleCheckbox(this)"></div>
+                            <div class="checkbox-label">
+                                <div class="checkbox-title">🔧 自定义工具</div>
+                                <div class="checkbox-desc">自定义工具脚本</div>
+                            </div>
+                            <div class="checkbox-size">64 KB</div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">备份说明（可选）</div>
+                    <div class="input-group">
+                        <input type="text" class="input" placeholder="输入备份说明，如：新增MCP服务器配置">
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-secondary" onclick="showPreview()">预览</button>
+                    <button class="btn btn-primary" onclick="startBackup()">开始备份</button>
+                </div>
+            </div>
+
+            <!-- Restore Page -->
+            <div class="page" id="page-restore">
+                <div class="page-header">
+                    <h1 class="page-title">恢复配置</h1>
+                    <p class="page-subtitle">从云端或本地备份恢复配置</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">备份来源</div>
+                    <div class="radio-group">
+                        <label class="radio-item">
+                            <div class="radio checked" onclick="toggleRadio(this)"></div>
+                            <span class="radio-label">从云端恢复（GitHub/SSH）</span>
+                        </label>
+                        <label class="radio-item">
+                            <div class="radio" onclick="toggleRadio(this)"></div>
+                            <span class="radio-label">从本地文件恢复</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">选择备份</div>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;"></th>
+                                    <th>时间</th>
+                                    <th>说明</th>
+                                    <th>大小</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><div class="radio checked" onclick="toggleRadio(this)"></div></td>
+                                    <td>2026-03-26 15:30</td>
+                                    <td>日常备份</td>
+                                    <td>541 KB</td>
+                                </tr>
+                                <tr>
+                                    <td><div class="radio" onclick="toggleRadio(this)"></div></td>
+                                    <td>2026-03-25 10:00</td>
+                                    <td>新增MCP配置</td>
+                                    <td>498 KB</td>
+                                </tr>
+                                <tr>
+                                    <td><div class="radio" onclick="toggleRadio(this)"></div></td>
+                                    <td>2026-03-24 09:15</td>
+                                    <td>初始配置</td>
+                                    <td>125 KB</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">恢复选项</div>
+                    <div class="checkbox-group">
+                        <label class="checkbox-item">
+                            <div class="checkbox checked" onclick="toggleCheckbox(this)"></div>
+                            <div class="checkbox-label">
+                                <div class="checkbox-title">恢复前备份当前配置</div>
+                                <div class="checkbox-desc">创建回滚点，恢复失败可回退</div>
+                            </div>
+                        </label>
+                        <label class="checkbox-item">
+                            <div class="checkbox" onclick="toggleCheckbox(this)"></div>
+                            <div class="checkbox-label">
+                                <div class="checkbox-title">跳过已存在的文件</div>
+                                <div class="checkbox-desc">不覆盖已存在的配置文件</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="startRestore()">开始恢复</button>
+                </div>
+            </div>
+
+            <!-- History Page -->
+            <div class="page" id="page-history">
+                <div class="page-header">
+                    <h1 class="page-title">备份历史</h1>
+                    <p class="page-subtitle">管理所有云端备份记录</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">
+                        <span>GitHub 私有仓库</span>
+                        <span class="tag" style="margin-left: 12px;">3 个备份</span>
+                    </div>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>时间</th>
+                                    <th>说明</th>
+                                    <th>大小</th>
+                                    <th>模块</th>
+                                    <th style="width: 180px;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>2026-03-26 15:30</td>
+                                    <td>日常备份</td>
+                                    <td>541 KB</td>
+                                    <td>6 个模块</td>
+                                    <td>
+                                        <div class="table-actions">
+                                            <button class="btn btn-secondary" onclick="showRestorePage()">恢复</button>
+                                            <button class="btn btn-secondary">下载</button>
+                                            <button class="btn btn-danger" onclick="confirmDelete()">删除</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>2026-03-25 10:00</td>
+                                    <td>新增MCP配置</td>
+                                    <td>498 KB</td>
+                                    <td>6 个模块</td>
+                                    <td>
+                                        <div class="table-actions">
+                                            <button class="btn btn-secondary" onclick="showRestorePage()">恢复</button>
+                                            <button class="btn btn-secondary">下载</button>
+                                            <button class="btn btn-danger" onclick="confirmDelete()">删除</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>2026-03-24 09:15</td>
+                                    <td>初始配置</td>
+                                    <td>125 KB</td>
+                                    <td>3 个模块</td>
+                                    <td>
+                                        <div class="table-actions">
+                                            <button class="btn btn-secondary" onclick="showRestorePage()">恢复</button>
+                                            <button class="btn btn-secondary">下载</button>
+                                            <button class="btn btn-danger" onclick="confirmDelete()">删除</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Page -->
+            <div class="page" id="page-settings">
+                <div class="page-header">
+                    <h1 class="page-title">设置</h1>
+                    <p class="page-subtitle">配置存储位置和应用选项</p>
+                </div>
+
+                <div class="card">
+                    <div class="settings-section">
+                        <div class="settings-title">存储设置</div>
+                        <div class="input-group">
+                            <label class="input-label">存储类型</label>
+                            <select class="select" id="storageType" onchange="changeStorageType()">
+                                <option value="github">GitHub 私有仓库（推荐）</option>
+                                <option value="ssh">SSH 服务器</option>
+                                <option value="local">仅本地</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- GitHub Settings -->
+                    <div id="githubSettings">
+                        <div class="settings-section">
+                            <div class="settings-title">GitHub 配置</div>
+                            <div class="grid-2">
+                                <div class="input-group">
+                                    <label class="input-label">Client ID</label>
+                                    <input type="text" class="input" placeholder="GitHub OAuth Client ID">
+                                </div>
+                                <div class="input-group">
+                                    <label class="input-label">Client Secret</label>
+                                    <input type="password" class="input" placeholder="GitHub OAuth Client Secret">
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">回调端口</label>
+                                <input type="number" class="input" value="18080" style="width: 150px;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SSH Settings -->
+                    <div id="sshSettings" style="display: none;">
+                        <div class="settings-section">
+                            <div class="settings-title">SSH 服务器配置</div>
+                            <div class="grid-2">
+                                <div class="input-group">
+                                    <label class="input-label">服务器地址</label>
+                                    <input type="text" class="input" placeholder="SSH 服务器 IP 或域名">
+                                </div>
+                                <div class="input-group">
+                                    <label class="input-label">SSH 端口</label>
+                                    <input type="number" class="input" value="22" style="width: 150px;">
+                                </div>
+                            </div>
+                            <div class="grid-2">
+                                <div class="input-group">
+                                    <label class="input-label">用户名</label>
+                                    <input type="text" class="input" placeholder="SSH 登录用户名">
+                                </div>
+                                <div class="input-group">
+                                    <label class="input-label">密码</label>
+                                    <input type="password" class="input" placeholder="SSH 登录密码">
+                                </div>
+                            </div>
+                            <button class="btn btn-secondary" onclick="testSSHConnection()">测试连接</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="settings-section">
+                        <div class="settings-title">备份选项</div>
+                        <div class="checkbox-group">
+                            <label class="checkbox-item">
+                                <div class="checkbox checked" onclick="toggleCheckbox(this)"></div>
+                                <div class="checkbox-label">
+                                    <div class="checkbox-title">自动脱敏敏感信息</div>
+                                    <div class="checkbox-desc">自动识别并脱敏 API Token、密码等敏感信息</div>
+                                </div>
+                            </label>
+                            <label class="checkbox-item">
+                                <div class="checkbox" onclick="toggleCheckbox(this)"></div>
+                                <div class="checkbox-label">
+                                    <div class="checkbox-title">备份前显示预览</div>
+                                    <div class="checkbox-desc">每次备份前显示备份内容预览</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div class="loading-text" id="loadingText">正在备份...</div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-title" id="modalTitle">确认删除</div>
+            <div class="modal-content" id="modalContent">
+                确定要删除这个备份吗？此操作不可撤销。
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+                <button class="btn btn-danger" id="modalConfirm" onclick="confirmModal()">删除</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // Navigation
+        // ============================================
+        const navItems = document.querySelectorAll('.nav-item');
+        const pages = document.querySelectorAll('.page');
+
+        navItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const pageName = item.dataset.page;
+
+                // Update nav items
+                navItems.forEach(nav => nav.classList.remove('active'));
+                item.classList.add('active');
+
+                // Update pages
+                pages.forEach(page => page.classList.remove('active'));
+                document.getElementById(`page-${pageName}`).classList.add('active');
+            });
+        });
+
+        // ============================================
+        // Checkbox Toggle
+        // ============================================
+        function toggleCheckbox(element) {
+            element.classList.toggle('checked');
+        }
+
+        // ============================================
+        // Radio Toggle
+        // ============================================
+        function toggleRadio(element) {
+            const parent = element.closest('.radio-group, tbody, td');
+            if (parent) {
+                parent.querySelectorAll('.radio').forEach(r => r.classList.remove('checked'));
+            }
+            element.classList.add('checked');
+        }
+
+        // ============================================
+        // Toast Notifications
+        // ============================================
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <span class="toast-icon">${type === 'success' ? '✓' : '✗'}</span>
+                <span class="toast-message">${message}</span>
+            `;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // ============================================
+        // Loading Overlay
+        // ============================================
+        function showLoading(text = '正在处理...') {
+            document.getElementById('loadingText').textContent = text;
+            document.getElementById('loadingOverlay').classList.add('active');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('active');
+        }
+
+        // ============================================
+        // Modal
+        // ============================================
+        function showModal(title, content, confirmText = '确认', confirmClass = 'btn-primary') {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalContent').textContent = content;
+            document.getElementById('modalConfirm').textContent = confirmText;
+            document.getElementById('modalConfirm').className = `btn ${confirmClass}`;
+            document.getElementById('modalOverlay').classList.add('active');
+        }
+
+        function closeModal(event) {
+            if (!event || event.target === document.getElementById('modalOverlay')) {
+                document.getElementById('modalOverlay').classList.remove('active');
+            }
+        }
+
+        function confirmModal() {
+            closeModal();
+            showToast('操作成功');
+        }
+
+        // ============================================
+        // Page Actions
+        // ============================================
+        function showPreview() {
+            showModal('备份预览', '即将备份 6 个模块，共 541 KB。发现 2 个敏感字段将被脱敏。', '确认备份', 'btn-primary');
+        }
+
+        function startBackup() {
+            showLoading('正在备份...');
+            setTimeout(() => {
+                hideLoading();
+                showToast('备份成功！文件已上传到 GitHub');
+            }, 2000);
+        }
+
+        function startRestore() {
+            showModal('确认恢复', '即将从备份 "2026-03-26 15:30" 恢复配置。将覆盖当前配置，是否继续？', '确认恢复', 'btn-primary');
+        }
+
+        function showRestorePage() {
+            document.querySelector('[data-page="restore"]').click();
+        }
+
+        function confirmDelete() {
+            showModal('确认删除', '确定要删除这个备份吗？此操作不可撤销。', '删除', 'btn-danger');
+        }
+
+        // ============================================
+        // Settings
+        // ============================================
+        function changeStorageType() {
+            const type = document.getElementById('storageType').value;
+            document.getElementById('githubSettings').style.display = type === 'github' ? 'block' : 'none';
+            document.getElementById('sshSettings').style.display = type === 'ssh' ? 'block' : 'none';
+        }
+
+        function testSSHConnection() {
+            showLoading('正在测试连接...');
+            setTimeout(() => {
+                hideLoading();
+                showToast('连接成功！');
+            }, 1500);
+        }
+
+        function saveSettings() {
+            showLoading('正在保存...');
+            setTimeout(() => {
+                hideLoading();
+                showToast('设置已保存');
+            }, 1000);
+        }
+
+        // ============================================
+        // Login
+        // ============================================
+        document.getElementById('loginBtn').addEventListener('click', function() {
+            showLoading('正在打开 GitHub 授权...');
+            setTimeout(() => {
+                hideLoading();
+                document.querySelector('.user-name').textContent = 'zihai';
+                this.textContent = '退出登录';
+                this.onclick = function() {
+                    document.querySelector('.user-name').textContent = '未登录';
+                    this.textContent = 'GitHub 登录';
+                    showToast('已退出登录');
+                };
+                showToast('登录成功！欢迎 zihai');
+            }, 1500);
+        });
+    </script>
+</body>
+</html>
